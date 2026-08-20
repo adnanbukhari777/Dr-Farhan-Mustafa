@@ -1,0 +1,55 @@
+# ----------------------------------------------------------------------
+# Dr. Farhan Mustafa Clinic Portal - Hostinger Production .htaccess
+# ----------------------------------------------------------------------
+
+# Enable Rewrite Engine
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /
+
+    # Force HTTPS
+    RewriteCond %{HTTPS} off
+    RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+    # Block access to hidden files (.env, .git, etc.)
+    RewriteRule "(^|/)\.(?!well-known)" - [F]
+
+    # Route all requests to index.php if not an existing file or directory
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^(.*)$ index.php [QSA,L]
+</IfModule>
+
+# Security Headers
+<IfModule mod_headers.c>
+    # Prevent MIME-type sniffing
+    Header set X-Content-Type-Options "nosniff"
+
+    # Clickjacking protection
+    Header set X-Frame-Options "SAMEORIGIN"
+
+    # XSS Protection
+    Header set X-XSS-Protection "1; mode=block"
+
+    # Referrer Policy
+    Header set Referrer-Policy "strict-origin-when-cross-origin"
+
+    # Content Security Policy (allows Google Fonts, Google Maps, local assets)
+    Header set Content-Security-Policy "default-src 'self' https: data: 'unsafe-inline' 'unsafe-eval'; frame-src 'self' https://maps.google.com https://www.google.com; img-src 'self' data: https:; font-src 'self' https://fonts.gstatic.com data:;"
+
+    # Strict Transport Security (HSTS) - 1 Year
+    Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+</IfModule>
+
+# Disable Directory Browsing
+Options -Indexes
+
+# Protect sensitive file extensions
+<FilesMatch "\.(env|sql|log|ini|conf|bak|sh)$">
+    Require all denied
+</FilesMatch>
+
+# Enable Gzip Compression for Fast Page Loads
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css text/javascript application/javascript application/json application/xml
+</IfModule>

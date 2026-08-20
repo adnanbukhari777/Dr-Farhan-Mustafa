@@ -1,0 +1,60 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --color-primary-teal: #2097A2;
+    --color-bright-aqua: #27BAC8;
+    --color-light-aqua: #A4E0E5;
+    --color-near-black: #0A0A0A;
+    --color-page-bg: #FAFAFA;
+    --color-soft-gray: #F0F0F0;
+    --color-muted-gray: #5B6467;
+    --color-star-gold: #FFD700;
+  }
+
+  body {
+    font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    color: var(--color-near-black);
+    background-color: var(--color-page-bg);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Montserrat', sans-serif;
+    letter-spacing: -0.01em;
+  }
+}
+
+/* Custom scrollbar and accessibility focus styles */
+:focus-visible {
+  outline: 2px solid #2097A2;
+  outline-offset: 2px;
+}
+
+.skip-to-content {
+  position: absolute;
+  top: -100px;
+  left: 16px;
+  background: #2097A2;
+  color: #FFFFFF;
+  padding: 10px 16px;
+  z-index: 9999;
+  font-weight: 600;
+  transition: top 0.2s ease;
+}
+
+.skip-to-content:focus {
+  top: 16px;
+}
+
+/* Custom utilities */
+.bg-teal-primary { background-color: #2097A2; }
+.bg-aqua-bright { background-color: #27BAC8; }
+.bg-aqua-light { background-color: #A4E0E5; }
+.text-teal-primary { color: #2097A2; }
+.text-aqua-bright { color: #27BAC8; }
+.text-muted-custom { color: #5B6467; }
+.border-teal-primary { border-color: #2097A2; }
+.border-soft-gray { border-color: #E2E8F0; }
+

@@ -1,0 +1,6 @@
+{
+  "name": "Dr. Farhan Mustafa - Consultant Physician",
+  "description": "Official clinic website and patient portal for Dr. Farhan Mustafa, Consultant Physician & Internal Medicine Specialist at HealthPro Medical Complex, Faisal Town, Lahore.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
