@@ -19,7 +19,8 @@ class Database
     {
         if (self::$instance === null) {
             $config = Config::getDbConfig();
-            $dsn = "mysql:host={$config['host']};dbname={$config['database']};charset={$config['charset']}";
+            $port = $config['port'] ?? 3306;
+            $dsn = "mysql:host={$config['host']};port={$port};dbname={$config['database']};charset={$config['charset']}";
             
             $options = [
                 PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,

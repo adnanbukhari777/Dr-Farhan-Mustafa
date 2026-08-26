@@ -10,6 +10,7 @@ namespace App\Security;
 
 use App\Config\Database;
 use App\Config\Config;
+use App\Config\EnvLoader;
 use PDO;
 
 class Mailer
@@ -28,16 +29,23 @@ class Mailer
             }
         }
 
+        $smtpEnabled = EnvLoader::get('SMTP_ENABLED', false);
+        $isActive = ($smtpEnabled === true || $smtpEnabled === 'true' || $smtpEnabled === '1' || $smtpEnabled === 1) ? 1 : 0;
+
+        $staffNotify = EnvLoader::get('STAFF_NOTIFICATION_ENABLED', false);
+        $notifyStaff = ($staffNotify === true || $staffNotify === 'true' || $staffNotify === '1' || $staffNotify === 1) ? 1 : 0;
+
         return [
-            'host' => 'smtp.hostinger.com',
-            'port' => 465,
-            'encryption' => 'ssl',
-            'username' => 'appointments@healthpro.com.pk',
-            'from_email' => 'appointments@healthpro.com.pk',
-            'from_name' => 'Dr. Farhan Mustafa Clinic',
-            'is_active' => 1,
-            'notify_staff_on_new' => 1,
-            'staff_notification_email' => 'reception@healthpro.com.pk'
+            'host' => (string)EnvLoader::get('SMTP_HOST', 'smtp.hostinger.com'),
+            'port' => (int)EnvLoader::get('SMTP_PORT', 465),
+            'encryption' => (string)EnvLoader::get('SMTP_ENCRYPTION', 'ssl'),
+            'username' => (string)(EnvLoader::get('SMTP_USER') ?: EnvLoader::get('SMTP_USERNAME', 'appointments@healthpro.com.pk')),
+            'password' => (string)(EnvLoader::get('SMTP_PASS') ?: EnvLoader::get('SMTP_PASSWORD', '')),
+            'from_email' => (string)EnvLoader::get('SMTP_FROM_EMAIL', 'appointments@healthpro.com.pk'),
+            'from_name' => (string)EnvLoader::get('SMTP_FROM_NAME', 'Dr. Farhan Mustafa'),
+            'is_active' => $isActive,
+            'notify_staff_on_new' => $notifyStaff,
+            'staff_notification_email' => (string)EnvLoader::get('STAFF_NOTIFICATION_EMAIL', 'reception@healthpro.com.pk')
         ];
     }
 

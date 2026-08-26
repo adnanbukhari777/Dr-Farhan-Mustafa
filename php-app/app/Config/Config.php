@@ -77,6 +77,7 @@ class Config
     {
         return [
             'host' => EnvLoader::get('DB_HOST', 'localhost'),
+            'port' => (int)EnvLoader::get('DB_PORT', 3306),
             'database' => EnvLoader::get('DB_NAME', 'drfarhan_clinic'),
             'username' => EnvLoader::get('DB_USER', 'root'),
             'password' => EnvLoader::get('DB_PASS', ''),

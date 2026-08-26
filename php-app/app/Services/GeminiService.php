@@ -5,6 +5,7 @@ namespace App\Services;
 
 use App\Models\AiKnowledgeModel;
 use App\Models\AiLogModel;
+use App\Config\EnvLoader;
 
 /**
  * Service to manage Gemini API communication, grounding in verified clinic facts,
@@ -17,12 +18,17 @@ class GeminiService
     private float $temperature;
     private int $maxTokens;
     private string $apiUrl;
+    private bool $enabled;
 
     public function __construct(?string $apiKey = null, string $modelName = 'gemini-3.7-flash')
     {
-        // 1. API key loaded securely from server environment variable
-        $this->apiKey = $apiKey ?? (string)($_ENV['GEMINI_API_KEY'] ?? getenv('GEMINI_API_KEY') ?: '');
-        $this->modelName = $modelName;
+        $rawKey = $apiKey ?? (string)(EnvLoader::get('GEMINI_API_KEY') ?: '');
+        $this->apiKey = ($rawKey === 'NOT_CONFIGURED' || str_starts_with($rawKey, 'your_')) ? '' : $rawKey;
+        
+        $aiEnabled = EnvLoader::get('AI_ENABLED', true);
+        $this->enabled = !empty($this->apiKey) && ($aiEnabled === true || $aiEnabled === 'true' || $aiEnabled === '1' || $aiEnabled === 1);
+        
+        $this->modelName = (string)EnvLoader::get('GEMINI_MODEL', $modelName);
         $this->temperature = 0.2;
         $this->maxTokens = 800;
         $this->apiUrl = "https://generativelanguage.googleapis.com/v1beta/models/{$this->modelName}:generateContent";
@@ -129,8 +135,8 @@ class GeminiService
 
         $replyText = "";
 
-        // If Gemini API Key exists, call Google Gemini REST endpoint
-        if (!empty($this->apiKey)) {
+        // If Gemini API Key exists and AI is enabled, call Google Gemini REST endpoint
+        if ($this->enabled && !empty($this->apiKey)) {
             $replyText = $this->callGeminiApi($userQuery, $conversationHistory, $systemPrompt);
         }
 
