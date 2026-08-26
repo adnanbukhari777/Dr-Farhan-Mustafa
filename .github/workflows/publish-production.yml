@@ -1,0 +1,75 @@
+name: Publish Hostinger Production Branch
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "hostinger-release/**"
+      - ".github/workflows/publish-production.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-hostinger-production
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    name: Validate and publish production files
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out main branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate Hostinger release
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          test -d hostinger-release
+          test -f hostinger-release/index.html
+          test -f hostinger-release/index.php
+          test -f hostinger-release/.htaccess
+          test -d hostinger-release/admin
+          test -d hostinger-release/api
+          test -d hostinger-release/app
+          test -d hostinger-release/assets
+
+          for blocked in \
+            hostinger-release/server.ts \
+            hostinger-release/package.json \
+            hostinger-release/vite.config.ts \
+            hostinger-release/tsconfig.json \
+            hostinger-release/src \
+            hostinger-release/node_modules \
+            hostinger-release/.env \
+            hostinger-release/installed.lock
+          do
+            if [ -e "$blocked" ]; then
+              echo "Blocked production item found: $blocked"
+              exit 1
+            fi
+          done
+
+          echo "Hostinger production package passed validation."
+
+      - name: Create or update production branch
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git branch -D production-build 2>/dev/null || true
+          git subtree split \
+            --prefix=hostinger-release \
+            -b production-build
+
+          git push origin production-build:production
