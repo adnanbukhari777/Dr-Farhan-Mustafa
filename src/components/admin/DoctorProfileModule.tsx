@@ -127,6 +127,12 @@ export const DoctorProfileModule: React.FC = () => {
                 alt="Doctor portrait preview"
                 className="w-20 h-20 rounded-lg object-cover border border-slate-300 shadow-xs bg-white"
                 referrerPolicy="no-referrer"
+                onError={(e) => {
+                  const target = e.currentTarget;
+                  if (target.src !== '/assets/images/doctor/dr-farhan-about.jpg') {
+                    target.src = '/assets/images/doctor/dr-farhan-about.jpg';
+                  }
+                }}
               />
               <div className="flex-1 space-y-1.5 w-full">
                 <input

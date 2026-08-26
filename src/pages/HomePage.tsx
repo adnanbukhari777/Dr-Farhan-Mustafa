@@ -174,6 +174,12 @@ export const HomePage: React.FC<HomePageProps> = ({
                 style={{ width: '100%', height: 'auto' }}
                 loading="lazy"
                 referrerPolicy="no-referrer"
+                onError={(e) => {
+                  const target = e.currentTarget;
+                  if (target.src !== '/assets/images/doctor/dr-farhan-about.jpg') {
+                    target.src = '/assets/images/doctor/dr-farhan-about.jpg';
+                  }
+                }}
               />
             </div>
           </div>
@@ -628,6 +634,12 @@ export const HomePage: React.FC<HomePageProps> = ({
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                     loading="lazy"
                     referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      const target = e.currentTarget;
+                      if (target.src !== `/assets/images/articles/${post.slug}.jpg`) {
+                        target.src = `/assets/images/articles/${post.slug}.jpg`;
+                      }
+                    }}
                   />
                 </div>
 

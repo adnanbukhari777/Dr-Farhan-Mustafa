@@ -97,6 +97,12 @@ export const BlogPage: React.FC<BlogPageProps> = ({ onNavigate }) => {
                   className="w-full h-full object-cover"
                   loading="lazy"
                   referrerPolicy="no-referrer"
+                  onError={(e) => {
+                    const target = e.currentTarget;
+                    if (target.src !== `/assets/images/articles/${selectedPost.slug}.jpg`) {
+                      target.src = `/assets/images/articles/${selectedPost.slug}.jpg`;
+                    }
+                  }}
                 />
               </div>
 
@@ -177,6 +183,12 @@ export const BlogPage: React.FC<BlogPageProps> = ({ onNavigate }) => {
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                     loading="lazy"
                     referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      const target = e.currentTarget;
+                      if (target.src !== `/assets/images/articles/${post.slug}.jpg`) {
+                        target.src = `/assets/images/articles/${post.slug}.jpg`;
+                      }
+                    }}
                   />
                 </div>
 

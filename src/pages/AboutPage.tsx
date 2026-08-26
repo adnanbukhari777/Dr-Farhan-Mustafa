@@ -1,8 +1,8 @@
 import React from 'react';
 import { PageId } from '../types';
 import { CLINIC_INFO } from '../data/clinicData';
+import { useCMS } from '../context/CMSContext';
 import { PageHero } from '../components/PageHero';
-import { DoctorPhotoPlaceholder } from '../components/DoctorPhotoPlaceholder';
 import { EmergencyBanner } from '../components/EmergencyBanner';
 import { ShieldCheck, Award, BookOpen, CheckCircle2, Calendar, Phone, MapPin, Sparkles } from 'lucide-react';
 import { WhatsAppIcon } from '../components/WhatsAppIcon';
@@ -12,6 +12,8 @@ interface AboutPageProps {
 }
 
 export const AboutPage: React.FC<AboutPageProps> = ({ onNavigate }) => {
+  const { doctorProfile } = useCMS();
+
   return (
     <div className="min-h-screen bg-light-blue pb-20">
       
@@ -50,9 +52,24 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigate }) => {
         {/* Profile Card & Credentials */}
         <section aria-labelledby="physician-overview-heading" className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
           
-          {/* Left Column: Photo Placeholder & Badges */}
+          {/* Left Column: Official Doctor Photo & Badges */}
           <div className="lg:col-span-5 space-y-6">
-            <DoctorPhotoPlaceholder className="w-full min-h-[380px]" />
+            <div className="overflow-hidden rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-white shadow-md">
+              <img
+                src={doctorProfile?.photoUrl || '/assets/images/doctor/dr-farhan-about.jpg'}
+                alt="Dr. Farhan Mustafa speaking at a lectern."
+                className="w-full h-auto object-contain block rounded-[var(--radius-sm)]"
+                style={{ width: '100%', height: 'auto' }}
+                loading="lazy"
+                referrerPolicy="no-referrer"
+                onError={(e) => {
+                  const target = e.currentTarget;
+                  if (target.src !== '/assets/images/doctor/dr-farhan-about.jpg') {
+                    target.src = '/assets/images/doctor/dr-farhan-about.jpg';
+                  }
+                }}
+              />
+            </div>
 
             <div className="card-standard p-6 space-y-4">
               <span className="text-xs font-bold uppercase tracking-widest text-[var(--brand-blue)] flex items-center gap-1.5">
