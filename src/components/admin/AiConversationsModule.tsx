@@ -9,7 +9,6 @@ import {
   CheckCircle2,
   Trash2,
   Phone,
-  MessageCircle,
   Clock,
   Globe,
   Lock,

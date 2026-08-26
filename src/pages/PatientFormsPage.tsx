@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { PageId } from '../types';
 import { CLINIC_INFO } from '../data/clinicData';
 import { useCMS } from '../context/CMSContext';
-import { Breadcrumb } from '../components/Breadcrumb';
+import { PageHero } from '../components/PageHero';
 import { EmergencyBanner } from '../components/EmergencyBanner';
 import { 
   FileCheck2, 
@@ -14,7 +14,9 @@ import {
   ClipboardList, 
   HeartPulse, 
   Pill, 
-  AlertTriangle 
+  AlertTriangle,
+  Calendar,
+  Phone
 } from 'lucide-react';
 
 interface PatientFormsPageProps {
@@ -149,26 +151,36 @@ export const PatientFormsPage: React.FC<PatientFormsPageProps> = ({ onNavigate }
   };
 
   return (
-    <div className="min-h-screen bg-[#FAFAFA] pb-16">
+    <div className="min-h-screen bg-light-blue pb-16">
       
-      {/* Header Block */}
-      <div className="bg-[#2097A2] text-white py-12 px-4 sm:px-6 lg:px-8 border-b-4 border-[#27BAC8]">
-        <div className="max-w-7xl mx-auto space-y-2">
-          <span className="text-xs font-bold uppercase tracking-widest text-[#A4E0E5] block">
-            Pre-Visit Preparation
-          </span>
-          <h1 className="text-3xl sm:text-4xl md:text-5xl font-medium tracking-tight text-white">
-            Pre-Consultation Intake Form
-          </h1>
-          <p className="text-sm sm:text-base text-white/90 font-normal max-w-2xl">
-            Securely provide essential health background to optimize your scheduled consultation time.
-          </p>
-        </div>
-      </div>
+      {/* Standardized Master Page Hero */}
+      <PageHero
+        title="Pre-Consultation Intake Form"
+        eyebrow="Pre-Visit Preparation"
+        subtitle="Securely provide essential health background to optimize your scheduled consultation time."
+        breadcrumbs={[{ label: 'Patient Forms' }]}
+        onNavigate={onNavigate}
+        actions={
+          <>
+            <button
+              onClick={() => onNavigate('appointments')}
+              className="btn-primary text-xs !min-h-[44px]"
+            >
+              <Calendar className="w-4 h-4 text-white" />
+              <span>Book Appointment</span>
+            </button>
+            <a
+              href={`tel:${CLINIC_INFO.phoneIntl}`}
+              className="btn-secondary text-xs !min-h-[44px]"
+            >
+              <Phone className="w-[18px] h-[18px] text-[#25B3C2]" aria-hidden="true" />
+              <span>Call Reception: {CLINIC_INFO.phone}</span>
+            </a>
+          </>
+        }
+      />
 
-      <Breadcrumb items={[{ label: 'Patient Forms' }]} onNavigate={onNavigate} />
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 space-y-10">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-10">
         <EmergencyBanner />
 
         {/* Why Complete Intake Information */}

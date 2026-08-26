@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { PageId } from '../types';
 import { CLINIC_INFO } from '../data/clinicData';
-import { Breadcrumb } from '../components/Breadcrumb';
+import { PageHero } from '../components/PageHero';
 import { EmergencyBanner } from '../components/EmergencyBanner';
-import { ShieldCheck, FileText, AlertTriangle } from 'lucide-react';
+import { ShieldCheck, FileText, AlertTriangle, Calendar } from 'lucide-react';
+import { WhatsAppIcon } from '../components/WhatsAppIcon';
 
 interface LegalPageProps {
   initialTab?: 'privacy' | 'terms' | 'disclaimer';
@@ -17,31 +18,46 @@ export const LegalPage: React.FC<LegalPageProps> = ({
   const [activeTab, setActiveTab] = useState<'privacy' | 'terms' | 'disclaimer'>(initialTab);
 
   return (
-    <div className="min-h-screen bg-[#FAFAFA] pb-16">
+    <div className="min-h-screen bg-light-blue pb-16">
       
-      {/* Header Block */}
-      <div className="bg-[#2097A2] text-white py-12 px-4 sm:px-6 lg:px-8 border-b-4 border-[#27BAC8]">
-        <div className="max-w-7xl mx-auto space-y-2">
-          <span className="text-xs font-bold uppercase tracking-widest text-[#A4E0E5] block">
-            Policies & Clinical Disclaimers
-          </span>
-          <h1 className="text-3xl sm:text-4xl md:text-5xl font-medium tracking-tight text-white">
-            {activeTab === 'privacy' && 'Privacy Policy'}
-            {activeTab === 'terms' && 'Terms of Use'}
-            {activeTab === 'disclaimer' && 'Medical & AI Disclaimer'}
-          </h1>
-          <p className="text-sm sm:text-base text-white/90 font-normal max-w-2xl">
-            Legal, privacy, and clinical boundaries governing Dr. Farhan Mustafa's clinic web portal.
-          </p>
-        </div>
-      </div>
-
-      <Breadcrumb 
-        items={[{ label: activeTab === 'privacy' ? 'Privacy Policy' : activeTab === 'terms' ? 'Terms of Use' : 'Medical Disclaimer' }]} 
-        onNavigate={onNavigate} 
+      {/* Standardized Master Page Hero */}
+      <PageHero
+        title={
+          activeTab === 'privacy' 
+            ? 'Privacy Policy' 
+            : activeTab === 'terms' 
+            ? 'Terms of Use' 
+            : 'Medical & AI Disclaimer'
+        }
+        eyebrow="Policies & Clinical Disclaimers"
+        subtitle="Legal, privacy, and clinical boundaries governing Dr. Farhan Mustafa's clinic web portal."
+        breadcrumbs={[{ 
+          label: activeTab === 'privacy' ? 'Privacy Policy' : activeTab === 'terms' ? 'Terms of Use' : 'Medical Disclaimer' 
+        }]}
+        onNavigate={onNavigate}
+        actions={
+          <>
+            <button
+              onClick={() => onNavigate('appointments')}
+              className="btn-primary text-xs !min-h-[44px]"
+            >
+              <Calendar className="button-icon text-white" />
+              <span>Book Appointment</span>
+            </button>
+            <a
+              href={CLINIC_INFO.whatsappUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-secondary text-xs !min-h-[44px]"
+            >
+              <WhatsAppIcon className="button-icon text-[#25B3C2]" aria-hidden="true" />
+              <span>WhatsApp Inquiries</span>
+            </a>
+          </>
+        }
       />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 space-y-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-8">
         <EmergencyBanner />
 
         {/* Tab Navigation */}

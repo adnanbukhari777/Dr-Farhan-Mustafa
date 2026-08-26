@@ -26,6 +26,7 @@ import {
   Trash2,
   Lock
 } from 'lucide-react';
+import { WhatsAppIcon } from '../WhatsAppIcon';
 
 export const AppointmentsModule: React.FC = () => {
   const { 
@@ -748,7 +749,7 @@ export const AppointmentsModule: React.FC = () => {
                 rel="noopener noreferrer"
                 className="px-3.5 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-semibold hover:bg-emerald-100 transition flex items-center gap-1.5"
               >
-                <MessageSquare className="w-3.5 h-3.5" />
+                <WhatsAppIcon className="w-3.5 h-3.5 text-emerald-700" aria-hidden="true" />
                 <span>WhatsApp Patient ({selectedAppointment.patientPhone})</span>
               </a>
               <a

@@ -2,12 +2,11 @@ import React, { useState } from 'react';
 import { PageId } from '../types';
 import { CLINIC_INFO } from '../data/clinicData';
 import { useCMS } from '../context/CMSContext';
-import { Breadcrumb } from '../components/Breadcrumb';
+import { PageHero } from '../components/PageHero';
 import { EmergencyBanner } from '../components/EmergencyBanner';
 import { 
   MapPin, 
   Phone, 
-  MessageCircle, 
   Mail, 
   Clock, 
   ExternalLink, 
@@ -16,6 +15,7 @@ import {
   ShieldAlert,
   Calendar
 } from 'lucide-react';
+import { WhatsAppIcon } from '../components/WhatsAppIcon';
 
 interface ContactPageProps {
   onNavigate: (page: PageId) => void;
@@ -63,26 +63,36 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onNavigate }) => {
   };
 
   return (
-    <div className="min-h-screen bg-[#FAFAFA] pb-16">
+    <div className="min-h-screen bg-light-blue pb-16">
       
-      {/* Header Block - Teal Inner Title Block inspired by reference site */}
-      <div className="bg-[#2097A2] text-white py-12 px-4 sm:px-6 lg:px-8 border-b-4 border-[#27BAC8]">
-        <div className="max-w-7xl mx-auto space-y-2">
-          <span className="text-xs font-bold uppercase tracking-widest text-[#A4E0E5] block">
-            Clinic Inquiries & Location
-          </span>
-          <h1 className="text-3xl sm:text-4xl md:text-5xl font-medium tracking-tight text-white">
-            Contact & Directions
-          </h1>
-          <p className="text-sm sm:text-base text-white/90 font-normal max-w-2xl">
-            Get in touch with HealthPro Medical Complex in Faisal Town, Lahore.
-          </p>
-        </div>
-      </div>
+      {/* Standardized Master Page Hero */}
+      <PageHero
+        title="Contact & Directions"
+        eyebrow="Clinic Inquiries & Location"
+        subtitle="Get in touch with HealthPro Medical Complex in Faisal Town, Lahore."
+        breadcrumbs={[{ label: 'Contact' }]}
+        onNavigate={onNavigate}
+        actions={
+          <>
+            <button
+              onClick={() => onNavigate('appointments')}
+              className="btn-primary text-xs !min-h-[44px]"
+            >
+              <Calendar className="button-icon text-white" />
+              <span>Book Appointment</span>
+            </button>
+            <a
+              href={`tel:${CLINIC_INFO.phoneIntl}`}
+              className="btn-secondary text-xs !min-h-[44px]"
+            >
+              <Phone className="button-icon text-[#25B3C2]" aria-hidden="true" />
+              <span>Call Reception: {CLINIC_INFO.phone}</span>
+            </a>
+          </>
+        }
+      />
 
-      <Breadcrumb items={[{ label: 'Contact' }]} onNavigate={onNavigate} />
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 space-y-12">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-12">
         <EmergencyBanner />
 
         {/* Two-Column Desktop Layout: Form & Clinic Details */}
@@ -281,7 +291,7 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onNavigate }) => {
                 </div>
 
                 <div className="flex items-start gap-3">
-                  <MessageCircle className="w-5 h-5 text-[#2097A2] shrink-0 mt-0.5" />
+                  <WhatsAppIcon className="w-5 h-5 text-[#2097A2] shrink-0 mt-0.5" aria-hidden="true" />
                   <div>
                     <strong className="text-[#0A0A0A] block">WhatsApp:</strong>
                     <a href={CLINIC_INFO.whatsappUrl} target="_blank" rel="noopener noreferrer" className="text-[#2097A2] font-semibold hover:underline">
@@ -312,9 +322,9 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onNavigate }) => {
 
                 <button
                   onClick={() => onNavigate('appointments')}
-                  className="w-full py-3 bg-[#0A0A0A] hover:bg-[#2097A2] text-white text-xs font-bold uppercase tracking-wider rounded-xs transition-colors flex items-center justify-center gap-2"
+                  className="btn-secondary w-full text-xs"
                 >
-                  <Calendar className="w-4 h-4" />
+                  <Calendar className="button-icon text-[#25B3C2]" aria-hidden="true" />
                   <span>Book Appointment Slot</span>
                 </button>
               </div>

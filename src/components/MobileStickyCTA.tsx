@@ -1,6 +1,7 @@
 import React from 'react';
 import { CLINIC_INFO } from '../data/clinicData';
-import { Calendar, Phone, MessageCircle, Bot } from 'lucide-react';
+import { Calendar, Phone, Bot } from 'lucide-react';
+import { WhatsAppIcon } from './WhatsAppIcon';
 import { PageId } from '../types';
 
 interface MobileStickyCTAProps {
@@ -33,7 +34,7 @@ export const MobileStickyCTA: React.FC<MobileStickyCTAProps> = ({
         rel="noopener noreferrer"
         className="flex-1 py-2.5 px-2 bg-[#FAFAFA] border border-[#CBD5E1] text-[#0A0A0A] rounded-xs flex flex-col items-center justify-center text-[10px] font-semibold"
       >
-        <MessageCircle className="w-4 h-4 text-[#2097A2] mb-0.5" />
+        <WhatsAppIcon className="w-4 h-4 text-[#2097A2] mb-0.5" aria-hidden="true" />
         <span>WhatsApp</span>
       </a>
 

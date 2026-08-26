@@ -6,7 +6,6 @@ import {
   Send,
   AlertTriangle,
   Phone,
-  MessageCircle,
   Calendar,
   MapPin,
   CheckCircle2,
@@ -18,6 +17,7 @@ import {
   VolumeX,
   Clock
 } from 'lucide-react';
+import { WhatsAppIcon } from './WhatsAppIcon';
 import { PageId } from '../types';
 
 interface AIModalProps {
@@ -294,17 +294,19 @@ export const AIModal: React.FC<AIModalProps> = ({
               href="https://wa.me/923280145670"
               target="_blank"
               rel="noopener noreferrer"
-              className="p-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-none transition-colors"
+              className="p-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-none transition-colors flex items-center justify-center"
               title="WhatsApp Front Desk (+92 328 0145670)"
+              aria-label="Contact clinic on WhatsApp"
             >
-              <MessageCircle className="w-4 h-4" />
+              <WhatsAppIcon className="w-4 h-4 text-white" aria-hidden="true" />
             </a>
             <a
               href="tel:+923280145670"
-              className="p-1.5 bg-[#2097A2] hover:bg-[#1B808A] text-white rounded-none transition-colors"
+              className="p-1.5 bg-[#2097A2] hover:bg-[#1B808A] text-white rounded-none transition-colors flex items-center justify-center"
               title="Call Clinic Reception (0328 0145670)"
+              aria-label="Call clinic reception"
             >
-              <Phone className="w-4 h-4" />
+              <Phone className="w-4 h-4" aria-hidden="true" />
             </a>
             <button
               onClick={handleResetChat}
@@ -436,7 +438,7 @@ export const AIModal: React.FC<AIModalProps> = ({
                       <button
                         key={i}
                         onClick={() => handleQuickActionClick(qa)}
-                        className={`px-2.5 py-1 text-[11px] font-semibold transition-colors cursor-pointer border ${
+                        className={`px-2.5 py-1 text-[11px] font-semibold transition-colors cursor-pointer border inline-flex items-center gap-1 ${
                           msg.isEmergency || qa.actionType === 'tel'
                             ? 'bg-red-600 text-white border-red-700 hover:bg-red-700'
                             : qa.actionType === 'whatsapp'
@@ -446,7 +448,10 @@ export const AIModal: React.FC<AIModalProps> = ({
                             : 'bg-white text-[#2097A2] border-[#2097A2]/40 hover:bg-[#2097A2] hover:text-white'
                         }`}
                       >
-                        {qa.label}
+                        {qa.actionType === 'whatsapp' && (
+                          <WhatsAppIcon className="w-3.5 h-3.5 text-white" aria-hidden="true" />
+                        )}
+                        <span>{qa.label}</span>
                       </button>
                     ))}
                   </div>

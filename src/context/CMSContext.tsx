@@ -32,6 +32,7 @@ import {
   CLINIC_INFO as INITIAL_CLINIC_INFO,
   ANNOUNCEMENTS as INITIAL_ANNOUNCEMENTS,
   VERIFIED_SERVICES as INITIAL_SERVICES,
+  VERIFIED_REVIEWS as INITIAL_REVIEWS,
   CLINIC_FAQS as INITIAL_FAQS,
   BLOG_POSTS as INITIAL_BLOGS,
   RESOURCES_LIST as INITIAL_RESOURCES,
@@ -300,16 +301,14 @@ export const CMSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [fees, setFees] = useState<FeeItem[]>(INITIAL_FEES);
   const [schedules, setSchedules] = useState<ScheduleItem[]>(INITIAL_SCHEDULES);
   const [announcements, setAnnouncements] = useState<AnnouncementItem[]>(
-    INITIAL_ANNOUNCEMENTS.map((a, i) => ({ ...a, badgeText: 'Notice', status: 'published' as PublicationStatus }))
+    INITIAL_ANNOUNCEMENTS.map((a) => ({ ...a, badgeText: a.badgeText || 'Notice', status: 'published' as PublicationStatus }))
   );
   const [faqs, setFaqs] = useState<FAQItem[]>(
     INITIAL_FAQS.map((f) => ({ ...f, status: 'published' as PublicationStatus }))
   );
-  const [reviews, setReviews] = useState<ReviewItem[]>([
-    { id: 'rev-1', patientName: 'Muhammad Tariq', rating: 5.0, reviewText: 'Dr. Farhan Mustafa is an exceptionally knowledgeable physician. He took 30 minutes to review my previous reports, explained my blood pressure medication clearly, and adjusted my dosage with great care.', source: 'google', reviewDate: '2026-08-10', isVerified: true, isFeatured: true, status: 'published' },
-    { id: 'rev-2', patientName: 'Ayesha Malik', rating: 5.0, reviewText: 'Very professional and respectful doctor in Faisal Town. The clinic was clean and organized, and Dr. Farhan explained my diabetes management plan in simple terms without unnecessary tests.', source: 'google', reviewDate: '2026-08-04', isVerified: true, isFeatured: true, status: 'published' },
-    { id: 'rev-3', patientName: 'Zubair Ahmed Khan', rating: 5.0, reviewText: 'Best internal medicine specialist in Lahore. Highly recommended for accurate diagnosis and compassionate care.', source: 'google', reviewDate: '2026-07-28', isVerified: true, isFeatured: true, status: 'published' }
-  ]);
+  const [reviews, setReviews] = useState<ReviewItem[]>(
+    INITIAL_REVIEWS.map((r) => ({ ...r, status: 'published' as PublicationStatus }))
+  );
   const [resources, setResources] = useState<ResourceItem[]>(
     INITIAL_RESOURCES.map((r) => ({ ...r, status: 'published' as PublicationStatus }))
   );

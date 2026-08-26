@@ -15,6 +15,7 @@ import {
   CheckCircle,
   Star
 } from 'lucide-react';
+import { WhatsAppIcon } from '../WhatsAppIcon';
 
 export const ContentModules: React.FC = () => {
   const {
@@ -587,7 +588,7 @@ export const ContentModules: React.FC = () => {
                     rel="noopener noreferrer"
                     className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 flex items-center gap-1"
                   >
-                    <MessageSquare className="w-3.5 h-3.5" />
+                    <WhatsAppIcon className="w-3.5 h-3.5" aria-hidden="true" />
                     Reply on WhatsApp
                   </a>
                   {!msg.isRead && (

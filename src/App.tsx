@@ -26,6 +26,7 @@ import { ReviewsPage } from './pages/ReviewsPage';
 import { BlogPage } from './pages/BlogPage';
 import { ContactPage } from './pages/ContactPage';
 import { LegalPage } from './pages/LegalPage';
+import { NotFoundPage } from './pages/NotFoundPage';
 
 function AppContent() {
   const [currentPage, setCurrentPage] = useState<PageId>('home');
@@ -65,6 +66,7 @@ function AppContent() {
         onNavigate={handleNavigate}
         onOpenMenu={() => setIsMenuOpen(true)}
         onOpenAI={() => setIsAIOpen(true)}
+        isMenuOpen={isMenuOpen}
       />
 
       {/* Full-screen Navigation Overlay */}
@@ -73,6 +75,7 @@ function AppContent() {
         onClose={() => setIsMenuOpen(false)}
         currentPage={currentPage}
         onNavigate={handleNavigate}
+        onOpenAI={() => setIsAIOpen(true)}
       />
 
       {/* AI Receptionist Modal */}
@@ -107,6 +110,7 @@ function AppContent() {
           <ServiceDetailPage
             service={selectedService}
             onNavigate={handleNavigate}
+            onSelectService={handleSelectService}
           />
         )}
 
@@ -148,6 +152,14 @@ function AppContent() {
 
         {currentPage === 'disclaimer' && (
           <LegalPage initialTab="disclaimer" onNavigate={handleNavigate} />
+        )}
+
+        {![
+          'home', 'about', 'services', 'service-detail', 'appointments', 
+          'fees', 'patient-forms', 'resources', 'reviews', 'blog', 
+          'contact', 'privacy', 'terms', 'disclaimer', 'admin'
+        ].includes(currentPage) && (
+          <NotFoundPage onNavigate={handleNavigate} />
         )}
       </main>
 

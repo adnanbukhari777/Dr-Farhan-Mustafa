@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { PageId, ResourceItem } from '../types';
 import { RESOURCES_LIST, CLINIC_INFO } from '../data/clinicData';
-import { Breadcrumb } from '../components/Breadcrumb';
+import { PageHero } from '../components/PageHero';
 import { EmergencyBanner } from '../components/EmergencyBanner';
-import { BookOpen, Clock, FileText, ArrowRight, ShieldCheck, CheckCircle2, Search } from 'lucide-react';
+import { BookOpen, Clock, FileText, ArrowRight, ShieldCheck, CheckCircle2, Search, Calendar } from 'lucide-react';
+import { WhatsAppIcon } from '../components/WhatsAppIcon';
 
 interface ResourcesPageProps {
   onNavigate: (page: PageId) => void;
@@ -19,26 +20,38 @@ export const ResourcesPage: React.FC<ResourcesPageProps> = ({ onNavigate }) => {
   );
 
   return (
-    <div className="min-h-screen bg-[#FAFAFA] pb-16">
+    <div className="min-h-screen bg-light-blue pb-16">
       
-      {/* Header Block */}
-      <div className="bg-[#2097A2] text-white py-12 px-4 sm:px-6 lg:px-8 border-b-4 border-[#27BAC8]">
-        <div className="max-w-7xl mx-auto space-y-2">
-          <span className="text-xs font-bold uppercase tracking-widest text-[#A4E0E5] block">
-            Health Education & Guides
-          </span>
-          <h1 className="text-3xl sm:text-4xl md:text-5xl font-medium tracking-tight text-white">
-            Patient Resources
-          </h1>
-          <p className="text-sm sm:text-base text-white/90 font-normal max-w-2xl">
-            Practical preparation checklists, chronic disease monitoring protocols, and clinical guidance.
-          </p>
-        </div>
-      </div>
+      {/* Standardized Master Page Hero */}
+      <PageHero
+        title="Patient Resources"
+        eyebrow="Health Education & Guides"
+        subtitle="Practical preparation checklists, chronic disease monitoring protocols, and clinical guidance."
+        breadcrumbs={[{ label: 'Resources' }]}
+        onNavigate={onNavigate}
+        actions={
+          <>
+            <button
+              onClick={() => onNavigate('appointments')}
+              className="btn-primary text-xs !min-h-[44px]"
+            >
+              <Calendar className="button-icon text-white" />
+              <span>Book Appointment</span>
+            </button>
+            <a
+              href={CLINIC_INFO.whatsappUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-secondary text-xs !min-h-[44px]"
+            >
+              <WhatsAppIcon className="button-icon text-[#25B3C2]" aria-hidden="true" />
+              <span>WhatsApp Inquiries</span>
+            </a>
+          </>
+        }
+      />
 
-      <Breadcrumb items={[{ label: 'Resources' }]} onNavigate={onNavigate} />
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 space-y-10">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-10">
         <EmergencyBanner />
 
         {/* Search */}

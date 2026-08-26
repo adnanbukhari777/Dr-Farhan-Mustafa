@@ -57,6 +57,7 @@ export interface BlogPost {
   summary: string;
   content: string;
   author: string;
+  readTime?: string;
   status?: PublicationStatus;
   featuredImage?: string;
 }

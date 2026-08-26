@@ -9,29 +9,29 @@ interface BreadcrumbProps {
 
 export const Breadcrumb: React.FC<BreadcrumbProps> = ({ items, onNavigate }) => {
   return (
-    <nav className="py-3 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto text-xs text-[#5B6467]" aria-label="Breadcrumb">
-      <ol className="flex items-center space-x-2">
+    <nav className="py-3 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto text-xs text-[#105B62]/80" aria-label="Breadcrumb">
+      <ol className="flex items-center space-x-2 flex-wrap">
         <li>
           <button
             onClick={() => onNavigate('home')}
-            className="flex items-center gap-1 hover:text-[#2097A2] transition-colors"
+            className="flex items-center gap-1.5 font-medium hover:text-[#25B3C2] transition-colors cursor-pointer"
           >
-            <Home className="w-3.5 h-3.5" />
+            <Home className="w-3.5 h-3.5 text-[#25B3C2]" />
             <span>Home</span>
           </button>
         </li>
         {items.map((item, index) => (
           <li key={index} className="flex items-center space-x-2">
-            <ChevronRight className="w-3 h-3 text-[#CBD5E1]" />
+            <ChevronRight className="w-3 h-3 text-[#25B3C2]/50 shrink-0" aria-hidden="true" />
             {item.page ? (
               <button
                 onClick={() => onNavigate(item.page!)}
-                className="hover:text-[#2097A2] transition-colors"
+                className="font-medium hover:text-[#25B3C2] transition-colors cursor-pointer"
               >
                 {item.label}
               </button>
             ) : (
-              <span className="font-semibold text-[#0A0A0A]">{item.label}</span>
+              <span className="font-bold text-[#111314]" aria-current="page">{item.label}</span>
             )}
           </li>
         ))}
@@ -39,3 +39,4 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ items, onNavigate }) => 
     </nav>
   );
 };
+
