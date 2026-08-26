@@ -1,0 +1,2 @@
+# Deny direct browser access to application backend classes and views
+Require all denied
