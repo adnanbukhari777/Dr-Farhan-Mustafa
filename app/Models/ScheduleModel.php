@@ -259,6 +259,20 @@ class ScheduleModel
     }
 
     /**
+     * Get a blocked slot by ID
+     */
+    public static function getBlockedSlotById(int $id): ?array
+    {
+        $db = Database::getConnection();
+        if (!$db) return null;
+
+        $stmt = $db->prepare("SELECT * FROM blocked_slots WHERE id = :id LIMIT 1");
+        $stmt->execute([':id' => $id]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $row ?: null;
+    }
+
+    /**
      * Delete a blocked slot
      */
     public static function deleteBlockedSlot(int $id): bool

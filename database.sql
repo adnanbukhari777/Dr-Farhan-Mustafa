@@ -21,10 +21,13 @@ CREATE TABLE IF NOT EXISTS `users` (
   `name` VARCHAR(150) NOT NULL,
   `email` VARCHAR(191) NOT NULL UNIQUE,
   `password_hash` VARCHAR(255) NOT NULL,
-  `role` ENUM('super_admin', 'admin', 'receptionist', 'editor') NOT NULL DEFAULT 'receptionist',
+  `role` ENUM('super_admin', 'admin', 'clinician', 'receptionist', 'editor') NOT NULL DEFAULT 'receptionist',
   `status` ENUM('active', 'inactive', 'suspended') NOT NULL DEFAULT 'active',
-  `phone` VARCHAR(32) NULL,
+  `failed_attempts` INT UNSIGNED NOT NULL DEFAULT 0,
+  `lockout_until` DATETIME NULL,
+  `last_login_at` DATETIME NULL,
   `last_login` DATETIME NULL,
+  `phone` VARCHAR(32) NULL,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX `idx_email` (`email`),
@@ -59,7 +62,8 @@ CREATE TABLE IF NOT EXISTS `doctor_profile` (
   `experience_summary` TEXT NOT NULL,
   `clinical_philosophy` TEXT NOT NULL,
   `bio_full` LONGTEXT NOT NULL,
-  `profile_image_url` VARCHAR(255) NULL DEFAULT '/assets/images/doctor/dr-farhan-about.jpg',
+  `profile_image_url` VARCHAR(500) NULL DEFAULT '/assets/images/doctor/dr-farhan-about.jpg',
+  `photo_url` VARCHAR(500) NULL DEFAULT '/assets/images/doctor/dr-farhan-about.jpg',
   `status` ENUM('draft', 'published', 'needs_verification') DEFAULT 'published',
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -110,7 +114,7 @@ CREATE TABLE IF NOT EXISTS `services` (
   `symptoms_json` JSON NULL,
   `what_to_bring_json` JSON NULL,
   `faqs_json` JSON NULL,
-  `icon_name` VARCHAR(50) DEFAULT 'stethoscope',
+  `icon_name` VARCHAR(100) DEFAULT 'stethoscope',
   `sort_order` INT DEFAULT 0,
   `status` ENUM('draft', 'published', 'needs_verification') DEFAULT 'published',
   `is_active` TINYINT(1) DEFAULT 1,
@@ -267,7 +271,8 @@ CREATE TABLE IF NOT EXISTS `clinic_holidays` (
   `title` VARCHAR(150) NOT NULL,
   `description` VARCHAR(255) NULL,
   `is_closed` TINYINT(1) DEFAULT 1,
-  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX `idx_holidays_date` (`holiday_date`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ==============================================================================
@@ -281,7 +286,7 @@ CREATE TABLE IF NOT EXISTS `blocked_slots` (
   `reason` VARCHAR(255) NOT NULL,
   `created_by` INT UNSIGNED NULL,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  INDEX `idx_block_date` (`block_date`)
+  INDEX `idx_blocked_slots_date` (`block_date`, `start_time`, `end_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ==============================================================================
@@ -335,7 +340,7 @@ CREATE TABLE IF NOT EXISTS `facts_verification_queue` (
   `admin_notes` TEXT NULL,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  INDEX `idx_status` (`status`)
+  INDEX `idx_verification_status` (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ==============================================================================
@@ -364,9 +369,9 @@ CREATE TABLE IF NOT EXISTS `appointments` (
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX `idx_phone` (`patient_phone`),
-  INDEX `idx_date_slot` (`preferred_date`, `preferred_time_slot`),
-  INDEX `idx_status` (`status`),
-  INDEX `idx_ref` (`reference_code`)
+  INDEX `idx_appointments_date_slot` (`preferred_date`, `preferred_time_slot`),
+  INDEX `idx_appointments_status` (`status`),
+  INDEX `idx_appointments_ref` (`reference_code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ==============================================================================
@@ -381,7 +386,7 @@ CREATE TABLE IF NOT EXISTS `appointment_history` (
   `notes` TEXT NULL,
   `changed_by` VARCHAR(100) DEFAULT 'System',
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  INDEX `idx_app_history` (`appointment_id`),
+  INDEX `idx_history_appointment_id` (`appointment_id`),
   FOREIGN KEY (`appointment_id`) REFERENCES `appointments`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -396,7 +401,7 @@ CREATE TABLE IF NOT EXISTS `staff_notes` (
   `note` TEXT NOT NULL,
   `is_internal` TINYINT(1) DEFAULT 1,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  INDEX `idx_app_staff_notes` (`appointment_id`),
+  INDEX `idx_staff_notes_appointment_id` (`appointment_id`),
   FOREIGN KEY (`appointment_id`) REFERENCES `appointments`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -425,12 +430,17 @@ CREATE TABLE IF NOT EXISTS `patient_intakes` (
   `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   `appointment_id` INT UNSIGNED NOT NULL,
   `visit_reason` TEXT NOT NULL,
-  `symptom_duration` VARCHAR(100) NULL,
+  `symptom_duration` TEXT NULL,
   `existing_conditions` TEXT NULL,
   `current_medicines` TEXT NULL,
   `known_allergies` TEXT NULL,
   `general_notes` TEXT NULL,
+  `is_encrypted` TINYINT(1) NOT NULL DEFAULT 0,
+  `reviewed_at` DATETIME NULL,
+  `reviewed_by` VARCHAR(100) NULL,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX `idx_intakes_appointment_id` (`appointment_id`),
+  INDEX `idx_intakes_is_encrypted` (`is_encrypted`),
   FOREIGN KEY (`appointment_id`) REFERENCES `appointments`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -462,7 +472,9 @@ CREATE TABLE IF NOT EXISTS `audit_logs` (
   `details_json` JSON NULL,
   `ip_address` VARCHAR(45) NULL,
   `user_agent` VARCHAR(255) NULL,
-  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX `idx_audit_logs_rate_limiting` (`action`, `ip_address`, `created_at`),
+  INDEX `idx_audit_logs_created_at` (`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ==============================================================================
@@ -501,7 +513,7 @@ CREATE TABLE IF NOT EXISTS `ai_knowledge_items` (
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX `idx_ai_knowledge_cat` (`category`),
-  INDEX `idx_ai_knowledge_pub` (`is_published`, `is_verified`)
+  INDEX `idx_ai_knowledge_published` (`is_published`, `is_verified`, `sort_order`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `ai_conversations` (
@@ -551,10 +563,12 @@ CREATE TABLE IF NOT EXISTS `ai_safety_logs` (
 -- 1. Initial Administrator Account (Can be updated during setup or in Admin Portal)
 -- Default initial password hash for installer: Admin@HealthPro2026!
 INSERT INTO `users` (`name`, `email`, `password_hash`, `role`, `status`, `phone`) VALUES
-('Super Administrator', 'superadmin@healthpro.com.pk', '$2y$10$t46G3a1sB.G.2nJjVepuTeuGjWb.YJqR8u2O.Hn4b/rE.0d7v165m', 'super_admin', 'active', '+923280145670'),
-('Clinic Administrator', 'admin@healthpro.com.pk', '$2y$10$t46G3a1sB.G.2nJjVepuTeuGjWb.YJqR8u2O.Hn4b/rE.0d7v165m', 'admin', 'active', '+923280145670'),
-('Front Desk Receptionist', 'reception@healthpro.com.pk', '$2y$10$t46G3a1sB.G.2nJjVepuTeuGjWb.YJqR8u2O.Hn4b/rE.0d7v165m', 'receptionist', 'active', '+923280145670')
-ON DUPLICATE KEY UPDATE `status` = 'active';
+('Super Administrator', 'superadmin@healthpro.com.pk', '$2y$10$aPIcde6ey4No03ewhrHumOzcxzl8vxWUd4weSlvSBFuWxw5zOFgNe', 'super_admin', 'active', '+923280145670'),
+('Clinic Administrator', 'admin@healthpro.com.pk', '$2y$10$aPIcde6ey4No03ewhrHumOzcxzl8vxWUd4weSlvSBFuWxw5zOFgNe', 'admin', 'active', '+923280145670'),
+('Front Desk Receptionist', 'reception@healthpro.com.pk', '$2y$10$aPIcde6ey4No03ewhrHumOzcxzl8vxWUd4weSlvSBFuWxw5zOFgNe', 'receptionist', 'active', '+923280145670'),
+('Content & AI Editor', 'editor@healthpro.com.pk', '$2y$10$aPIcde6ey4No03ewhrHumOzcxzl8vxWUd4weSlvSBFuWxw5zOFgNe', 'editor', 'active', '+923280145670'),
+('Dr. Farhan Mustafa (Clinician)', 'clinician@healthpro.com.pk', '$2y$10$aPIcde6ey4No03ewhrHumOzcxzl8vxWUd4weSlvSBFuWxw5zOFgNe', 'clinician', 'active', '+923280145670')
+ON DUPLICATE KEY UPDATE `status` = 'active', `password_hash` = VALUES(`password_hash`), `role` = VALUES(`role`);
 
 -- 2. General Practice & Location Settings
 INSERT INTO `settings` (`setting_group`, `setting_key`, `setting_value`, `description`, `is_public`) VALUES
@@ -772,5 +786,57 @@ INSERT INTO `ai_knowledge_items` (`id`, `category`, `topic`, `question_en`, `que
 (5, 'services', 'Diabetes, Blood Pressure & Digestive Care', 'What clinical conditions does Dr. Farhan treat?', 'ڈاکٹر صاحب کن بیماریوں کا علاج کرتے ہیں؟', 'Dr Farhan kin bimariyon ka treatment karte hain?', 'Dr. Farhan manages adult chronic conditions including Type 2 Diabetes, High Blood Pressure (Hypertension), gastrointestinal and acid reflux concerns, liver health (fatty liver, LFTs), adult infectious diseases, fever investigations, and preventive health screenings.', '["services", "diabetes", "sugar", "blood pressure", "bp", "stomach", "maida", "liver", "jigar", "fever", "bukhar"]', 1, 1, 5),
 (6, 'appointments', 'Booking Appointments & Contact', 'How can I book an appointment?', 'اپائنٹمنٹ بک کرنے کا طریقہ', 'Appointment book karne ka tarika', 'You can submit an appointment request on our website by clicking "Book Appointment" or by sending a WhatsApp message to +92 328 0145670. Our staff will confirm your slot based on schedule availability.', '["book", "appointment", "schedule", "whatsapp", "phone", "rabta"]', 1, 1, 6)
 ON DUPLICATE KEY UPDATE `topic` = VALUES(`topic`);
+
+CREATE TABLE IF NOT EXISTS `pages` (
+  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `slug` VARCHAR(100) NOT NULL UNIQUE,
+  `title` VARCHAR(255) NOT NULL,
+  `header_title` VARCHAR(255) NULL,
+  `header_subtitle` VARCHAR(500) NULL,
+  `content_html` MEDIUMTEXT NULL,
+  `meta_title` VARCHAR(255) NULL,
+  `meta_description` TEXT NULL,
+  `status` ENUM('draft', 'published', 'archived') NOT NULL DEFAULT 'published',
+  `sort_order` INT NOT NULL DEFAULT 0,
+  `updated_by` INT UNSIGNED NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX `idx_pages_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `homepage_sections` (
+  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `section_key` VARCHAR(100) NOT NULL UNIQUE,
+  `section_name` VARCHAR(191) NOT NULL,
+  `heading` VARCHAR(255) NULL,
+  `subheading` VARCHAR(500) NULL,
+  `body_content` MEDIUMTEXT NULL,
+  `cta_label` VARCHAR(100) NULL,
+  `cta_link` VARCHAR(255) NULL,
+  `is_visible` TINYINT(1) NOT NULL DEFAULT 1,
+  `sort_order` INT NOT NULL DEFAULT 0,
+  `status` ENUM('draft', 'published') NOT NULL DEFAULT 'published',
+  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `footer_sections` (
+  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `column_title` VARCHAR(191) NOT NULL,
+  `column_type` VARCHAR(50) NOT NULL DEFAULT 'custom',
+  `content_json` JSON NULL,
+  `sort_order` INT NOT NULL DEFAULT 0,
+  `is_active` TINYINT(1) NOT NULL DEFAULT 1
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `navigation_items` (
+  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `label` VARCHAR(100) NOT NULL,
+  `url` VARCHAR(255) NOT NULL,
+  `parent_id` INT UNSIGNED NULL,
+  `menu_location` VARCHAR(50) NOT NULL DEFAULT 'primary',
+  `open_in_new_tab` TINYINT(1) NOT NULL DEFAULT 0,
+  `sort_order` INT NOT NULL DEFAULT 0,
+  `is_active` TINYINT(1) NOT NULL DEFAULT 1
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 SET FOREIGN_KEY_CHECKS = 1;

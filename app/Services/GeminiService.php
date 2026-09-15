@@ -216,7 +216,7 @@ class GeminiService
     {
         $lower = mb_strtolower($query, 'UTF-8');
         foreach ($knowledge as $item) {
-            $keywords = is_array($item['keywords_json'] ?? null) ? $item['keywords_json'] : json_decode($item['keywords_json'] ?? '[]', true) ?: [];
+            $keywords = is_array($item['keywords_json'] ?? null) ? $item['keywords_json'] : (json_decode($item['keywords_json'] ?? '[]', true) ?: []);
             foreach ($keywords as $kw) {
                 if (stripos($lower, (string)$kw) !== false) {
                     return $item['answer_content'];
