@@ -3,13 +3,14 @@
 
 SET NAMES utf8mb4;
 
--- 1. Initial System Users (All 4 RBAC Roles)
+-- 1. Initial System Users (All 5 RBAC Roles)
 -- Password for initial login: Admin@HealthPro2026! (or Receptionist@2026!)
 INSERT INTO `users` (`name`, `email`, `password_hash`, `role`, `status`, `phone`) VALUES
-('Super Administrator', 'superadmin@healthpro.com.pk', '$2y$10$t46G3a1sB.G.2nJjVepuTeuGjWb.YJqR8u2O.Hn4b/rE.0d7v165m', 'super_admin', 'active', '+923280145670'),
-('Clinic Administrator', 'admin@healthpro.com.pk', '$2y$10$t46G3a1sB.G.2nJjVepuTeuGjWb.YJqR8u2O.Hn4b/rE.0d7v165m', 'admin', 'active', '+923280145670'),
-('Front Desk Receptionist', 'reception@healthpro.com.pk', '$2y$10$t46G3a1sB.G.2nJjVepuTeuGjWb.YJqR8u2O.Hn4b/rE.0d7v165m', 'receptionist', 'active', '+923280145670'),
-('Content Editor', 'editor@healthpro.com.pk', '$2y$10$t46G3a1sB.G.2nJjVepuTeuGjWb.YJqR8u2O.Hn4b/rE.0d7v165m', 'editor', 'active', '+923280145670')
+('Super Administrator', 'superadmin@healthpro.com.pk', '$2y$10$BpxV/h6pb9sLhhqWpIp2PupoS8Nini9TMGuXP6dKlsAqd6gypIlQS', 'super_admin', 'active', '+923280145670'),
+('Clinic Administrator', 'admin@healthpro.com.pk', '$2y$10$BpxV/h6pb9sLhhqWpIp2PupoS8Nini9TMGuXP6dKlsAqd6gypIlQS', 'admin', 'active', '+923280145670'),
+('Dr. Farhan Mustafa (Clinician)', 'clinician@healthpro.com.pk', '$2y$10$BpxV/h6pb9sLhhqWpIp2PupoS8Nini9TMGuXP6dKlsAqd6gypIlQS', 'clinician', 'active', '+923280145670'),
+('Front Desk Receptionist', 'reception@healthpro.com.pk', '$2y$10$BpxV/h6pb9sLhhqWpIp2PupoS8Nini9TMGuXP6dKlsAqd6gypIlQS', 'receptionist', 'active', '+923280145670'),
+('Content Editor', 'editor@healthpro.com.pk', '$2y$10$BpxV/h6pb9sLhhqWpIp2PupoS8Nini9TMGuXP6dKlsAqd6gypIlQS', 'editor', 'active', '+923280145670')
 ON DUPLICATE KEY UPDATE `status` = 'active';
 
 -- 2. General Settings

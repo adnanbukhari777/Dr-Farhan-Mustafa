@@ -85,6 +85,14 @@ class AiKnowledgeModel
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
+    public function getById(int $id): ?array
+    {
+        $stmt = $this->db->prepare("SELECT * FROM ai_knowledge_items WHERE id = :id LIMIT 1");
+        $stmt->execute([':id' => $id]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $row ?: null;
+    }
+
     public function createItem(array $data): int
     {
         $stmt = $this->db->prepare("INSERT INTO ai_knowledge_items 

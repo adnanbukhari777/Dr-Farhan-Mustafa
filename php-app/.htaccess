@@ -1,7 +1,90 @@
-# Deny direct access to all private backend files (app, database, cron)
-<IfModule mod_authz_core.c>
-    Require all denied
+DirectoryIndex index.html index.php
+# ==============================================================================
+# Dr. Farhan Mustafa Clinic Portal - Hostinger Production .htaccess
+# ==============================================================================
+
+# Enable Rewrite Engine
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /
+
+    # Force HTTPS
+    RewriteCond %{HTTPS} off
+    RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+    # Block access to hidden files (.env, .git, etc.)
+    RewriteRule "(^|/)\.(?!well-known)" - [F]
+
+    # Route API endpoints through front controller if not physically present
+    RewriteRule ^api/(.*)$ index.php [QSA,L]
+
+    # Route all non-file/non-directory requests to index.php
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^(.*)$ index.php [QSA,L]
 </IfModule>
-<IfModule !mod_authz_core.c>
-    Deny from all
+
+# Correct MIME Types for Modern Web Assets & Video
+<IfModule mod_mime.c>
+    AddType text/html .html .htm
+    AddType text/css .css
+    AddType application/javascript .js
+    AddType application/json .json
+    AddType image/svg+xml .svg
+    AddType image/webp .webp
+    AddType image/jpeg .jpg .jpeg
+    AddType image/png .png
+    AddType video/mp4 .mp4
+    AddType video/webm .webm
+    AddType font/woff2 .woff2
+    AddType font/woff .woff
+</IfModule>
+
+# Security Headers
+<IfModule mod_headers.c>
+    # Prevent MIME sniffing
+    Header set X-Content-Type-Options "nosniff"
+
+    # Clickjacking protection
+    Header set X-Frame-Options "SAMEORIGIN"
+
+    # XSS Filter Protection
+    Header set X-XSS-Protection "1; mode=block"
+
+    # Referrer Policy
+    Header set Referrer-Policy "strict-origin-when-cross-origin"
+
+    # Content Security Policy (Allows Google Fonts, Google Maps iframe, local scripts & media)
+    Header set Content-Security-Policy "default-src 'self' https: data: blob: 'unsafe-inline' 'unsafe-eval'; frame-src 'self' https://maps.google.com https://www.google.com; img-src 'self' data: https: blob:; media-src 'self' data: blob:; font-src 'self' https://fonts.gstatic.com data:; connect-src 'self' https:;"
+
+    # HTTP Strict Transport Security (HSTS)
+    Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+</IfModule>
+
+# Disable Directory Listing
+Options -Indexes
+
+# Protect Sensitive Configuration, SQL, and Log Files
+<FilesMatch "\.(env|sql|log|ini|conf|bak|sh|md)$">
+    Require all denied
+</FilesMatch>
+
+# Enable Gzip / Deflate Compression
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css text/javascript application/javascript application/json application/xml image/svg+xml
+</IfModule>
+
+# Browser Caching Policy (1 Year for fingerprinted assets, 0 for HTML)
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType text/html "access plus 0 seconds"
+    ExpiresByType text/css "access plus 1 year"
+    ExpiresByType application/javascript "access plus 1 year"
+    ExpiresByType image/jpeg "access plus 1 year"
+    ExpiresByType image/png "access plus 1 year"
+    ExpiresByType image/webp "access plus 1 year"
+    ExpiresByType image/svg+xml "access plus 1 year"
+    ExpiresByType video/mp4 "access plus 1 year"
+    ExpiresByType video/webm "access plus 1 year"
+    ExpiresByType font/woff2 "access plus 1 year"
 </IfModule>

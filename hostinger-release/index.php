@@ -15,12 +15,14 @@ require_once APP_ROOT . '/app/Config/Config.php';
 require_once APP_ROOT . '/app/Config/Database.php';
 
 // Load Security Helpers
+require_once APP_ROOT . '/app/Security/Crypto.php';
 require_once APP_ROOT . '/app/Security/Auth.php';
 require_once APP_ROOT . '/app/Security/Csrf.php';
 require_once APP_ROOT . '/app/Security/Mailer.php';
 require_once APP_ROOT . '/app/Security/Validator.php';
 
 // Load Models
+require_once APP_ROOT . '/app/Models/AuditModel.php';
 require_once APP_ROOT . '/app/Models/UserModel.php';
 require_once APP_ROOT . '/app/Models/SettingModel.php';
 require_once APP_ROOT . '/app/Models/ServiceModel.php';
@@ -29,6 +31,7 @@ require_once APP_ROOT . '/app/Models/AppointmentModel.php';
 require_once APP_ROOT . '/app/Models/ContactModel.php';
 require_once APP_ROOT . '/app/Models/AiKnowledgeModel.php';
 require_once APP_ROOT . '/app/Models/AiLogModel.php';
+require_once APP_ROOT . '/app/Models/VerificationModel.php';
 
 // Load Services & Controllers
 require_once APP_ROOT . '/app/Services/GeminiService.php';
@@ -42,6 +45,9 @@ require_once APP_ROOT . '/app/Controllers/AiController.php';
 $requestUri = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
 $scriptName = $_SERVER['SCRIPT_NAME'] ?? '/index.php';
 $basePath = rtrim(dirname($scriptName), '/');
+if ($basePath === '/api' || str_ends_with($basePath, '/api')) {
+    $basePath = substr($basePath, 0, -4);
+}
 $route = '/' . trim(str_replace($basePath, '', $requestUri), '/');
 
 // Normalize empty or index.php route
@@ -122,6 +128,7 @@ if (str_starts_with($route, '/api/')) {
 
     // Appointment Booking Endpoints
     if (str_starts_with($route, '/api/appointments')) {
+        \App\Controllers\AppointmentController::denyEditor();
         $appCtrl = new \App\Controllers\AppointmentController();
 
         if ($route === '/api/appointments/slots' && $method === 'GET') {
@@ -142,30 +149,75 @@ if (str_starts_with($route, '/api/')) {
         } elseif ($route === '/api/appointments/types' && $method === 'GET') {
             $appCtrl->getTypes();
             exit;
+        } elseif ($route === '/api/appointments/export' && $method === 'GET') {
+            $appCtrl->export();
+            exit;
         } elseif ($route === '/api/appointments' && $method === 'POST') {
             $appCtrl->book();
             exit;
         } elseif ($route === '/api/appointments' && $method === 'GET') {
             $appCtrl->list();
             exit;
+        } elseif (preg_match('#^/api/appointments/(\d+)/clinical/review$#', $route, $matches)) {
+            if ($method === 'POST') {
+                $appCtrl->reviewClinicalIntake((int)$matches[1]);
+                exit;
+            }
+        } elseif (preg_match('#^/api/appointments/(\d+)/clinical$#', $route, $matches)) {
+            if ($method === 'GET') {
+                $appCtrl->getClinicalIntake((int)$matches[1]);
+                exit;
+            }
+        } elseif (preg_match('#^/api/appointments/(\d+)/history$#', $route, $matches)) {
+            if ($method === 'GET') {
+                $appCtrl->getHistory((int)$matches[1]);
+                exit;
+            }
+        } elseif (preg_match('#^/api/appointments/(\d+)/print$#', $route, $matches)) {
+            if ($method === 'GET') {
+                $appCtrl->printAppointment((int)$matches[1]);
+                exit;
+            }
         } elseif (preg_match('#^/api/appointments/(\d+)/notes$#', $route, $matches)) {
             if ($method === 'POST') {
-                $appCtrl->addNote();
+                $appCtrl->addNote((int)$matches[1]);
                 exit;
             }
+        } elseif ($route === '/api/appointments/notes' && $method === 'POST') {
+            header('X-Deprecated: Route /api/appointments/notes is deprecated. Use POST /api/appointments/{id}/notes instead.');
+            $appCtrl->addNote();
+            exit;
         } elseif (preg_match('#^/api/appointments/(\d+)$#', $route, $matches)) {
-            if ($method === 'PATCH' || $method === 'POST') {
-                $appCtrl->updateStatus();
+            if ($method === 'GET') {
+                $appCtrl->get((int)$matches[1]);
+                exit;
+            } elseif ($method === 'PATCH' || $method === 'POST') {
+                $appCtrl->updateStatus((int)$matches[1]);
                 exit;
             }
+        } elseif ($route === '/api/appointments/status' && ($method === 'PATCH' || $method === 'POST')) {
+            header('X-Deprecated: Route /api/appointments/status is deprecated. Use PATCH /api/appointments/{id} instead.');
+            $appCtrl->updateStatus();
+            exit;
         }
     }
 
-    // Schedule Rules
-    if ($route === '/api/schedules/rules' && $method === 'GET') {
+    // Schedule Rules & Management
+    if (str_starts_with($route, '/api/schedules')) {
         $appCtrl = new \App\Controllers\AppointmentController();
-        $appCtrl->getRules();
-        exit;
+        if ($route === '/api/schedules/rules' && $method === 'GET') {
+            $appCtrl->getRules();
+            exit;
+        } elseif ($route === '/api/schedules/blocked-slots' && $method === 'POST') {
+            $appCtrl->addBlockedSlot();
+            exit;
+        } elseif (preg_match('#^/api/schedules/blocked-slots/(\d+)$#', $route, $matches) && $method === 'DELETE') {
+            $appCtrl->deleteBlockedSlot((int)$matches[1]);
+            exit;
+        } elseif ($route === '/api/schedules/holidays' && $method === 'POST') {
+            $appCtrl->addHoliday();
+            exit;
+        }
     }
 
     // SMTP Settings & Test
@@ -190,11 +242,206 @@ if (str_starts_with($route, '/api/')) {
         exit;
     }
 
-    // Admin Auth
-    if ($route === '/api/auth/login' && $method === 'POST') {
+    // System Settings & CMS Content
+    if ($route === '/api/settings' || $route === '/api/admin/settings') {
+        if ($method === 'GET') {
+            $settings = \App\Models\SettingModel::getAll();
+            \App\Security\Auth::jsonResponse(['success' => true, 'settings' => $settings]);
+        } elseif ($method === 'POST' || $method === 'PUT') {
+            \App\Security\Auth::requireRole([\App\Security\Auth::ROLE_EDITOR, \App\Security\Auth::ROLE_ADMIN, \App\Security\Auth::ROLE_SUPER_ADMIN]);
+            \App\Security\Auth::requireCsrf();
+            $input = \App\Security\Auth::requireJsonRequest();
+            $key = (string)($input['key'] ?? '');
+            $val = (string)($input['value'] ?? '');
+            $group = (string)($input['group'] ?? 'general');
+            if (empty($key)) {
+                \App\Security\Auth::jsonResponse(['success' => false, 'error' => 'validation_error', 'message' => 'Setting key is required.'], 400);
+            }
+            $saved = \App\Models\SettingModel::set($key, $val, $group);
+            if ($saved) {
+                \App\Security\Auth::recordAuditEvent('setting_updated', 'setting', $key, ['group' => $group]);
+                \App\Security\Auth::jsonResponse(['success' => true, 'message' => 'Setting saved successfully.']);
+            }
+            \App\Security\Auth::jsonResponse(['success' => false, 'error' => 'save_failed', 'message' => 'Failed to save setting.'], 500);
+        }
+    }
+
+    // User Management (Super Admin only)
+    if (str_starts_with($route, '/api/admin/users')) {
+        \App\Security\Auth::requireRole(\App\Security\Auth::ROLE_SUPER_ADMIN);
+
+        if ($route === '/api/admin/users' && $method === 'GET') {
+            $users = \App\Models\UserModel::getAll();
+            \App\Security\Auth::jsonResponse(['success' => true, 'users' => $users]);
+        } elseif ($route === '/api/admin/users' && $method === 'POST') {
+            \App\Security\Auth::requireCsrf();
+            $input = \App\Security\Auth::requireJsonRequest();
+            $allowed = ['name', 'email', 'password', 'role', 'status', 'phone'];
+            $filtered = array_intersect_key($input, array_flip($allowed));
+
+            if (empty($filtered['name']) || empty($filtered['email']) || empty($filtered['password'])) {
+                \App\Security\Auth::jsonResponse(['success' => false, 'error' => 'validation_error', 'message' => 'Name, email, and password are required.'], 400);
+            }
+
+            $email = strtolower(trim((string)$filtered['email']));
+            if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                \App\Security\Auth::jsonResponse(['success' => false, 'error' => 'validation_error', 'message' => 'Invalid email address.'], 400);
+            }
+
+            // Check duplicate email
+            $existing = \App\Models\UserModel::getByEmail($email);
+            if ($existing) {
+                \App\Security\Auth::jsonResponse(['success' => false, 'error' => 'conflict', 'message' => 'A user with this email address already exists.'], 409);
+            }
+
+            $createdId = \App\Models\UserModel::create($filtered);
+            if ($createdId) {
+                \App\Security\Auth::recordAuditEvent('user_created', 'user', (string)$createdId, ['email' => $email, 'role' => $filtered['role'] ?? 'receptionist']);
+                $newUser = \App\Models\UserModel::getById($createdId);
+                \App\Security\Auth::jsonResponse(['success' => true, 'message' => 'User created successfully.', 'user' => $newUser], 201);
+            }
+            \App\Security\Auth::jsonResponse(['success' => false, 'error' => 'creation_failed', 'message' => 'Failed to create user.'], 500);
+        } elseif (preg_match('#^/api/admin/users/(\d+)$#', $route, $matches)) {
+            $userId = (int)$matches[1];
+            $existing = \App\Models\UserModel::getById($userId);
+            if (!$existing) {
+                \App\Security\Auth::jsonResponse(['success' => false, 'error' => 'not_found', 'message' => 'User record not found.'], 404);
+            }
+
+            if ($method === 'PUT' || $method === 'PATCH') {
+                \App\Security\Auth::requireCsrf();
+                $input = \App\Security\Auth::requireJsonRequest();
+                $allowed = ['name', 'email', 'password', 'role', 'status', 'phone'];
+                $filtered = array_intersect_key($input, array_flip($allowed));
+
+                if (isset($filtered['email'])) {
+                    $newEmail = strtolower(trim((string)$filtered['email']));
+                    if (!filter_var($newEmail, FILTER_VALIDATE_EMAIL)) {
+                        \App\Security\Auth::jsonResponse(['success' => false, 'error' => 'validation_error', 'message' => 'Invalid email address.'], 400);
+                    }
+                    if ($newEmail !== strtolower($existing['email'])) {
+                        $duplicate = \App\Models\UserModel::getByEmail($newEmail);
+                        if ($duplicate && (int)$duplicate['id'] !== $userId) {
+                            \App\Security\Auth::jsonResponse(['success' => false, 'error' => 'conflict', 'message' => 'A user with this email address already exists.'], 409);
+                        }
+                    }
+                }
+
+                $updated = \App\Models\UserModel::update($userId, $filtered);
+                if ($updated) {
+                    \App\Security\Auth::recordAuditEvent('user_updated', 'user', (string)$userId, ['role' => $filtered['role'] ?? null]);
+                    $refreshed = \App\Models\UserModel::getById($userId);
+                    \App\Security\Auth::jsonResponse(['success' => true, 'message' => 'User updated successfully.', 'user' => $refreshed]);
+                }
+                \App\Security\Auth::jsonResponse(['success' => false, 'error' => 'update_failed', 'message' => 'Failed to update user.'], 500);
+            } elseif ($method === 'DELETE') {
+                \App\Security\Auth::requireCsrf();
+                $currentUser = \App\Security\Auth::user();
+                if ($currentUser && (int)$currentUser['id'] === $userId) {
+                    \App\Security\Auth::jsonResponse(['success' => false, 'error' => 'forbidden', 'message' => 'Cannot delete your own account.'], 403);
+                }
+                $deleted = \App\Models\UserModel::delete($userId);
+                if ($deleted) {
+                    \App\Security\Auth::recordAuditEvent('user_deleted', 'user', (string)$userId);
+                    \App\Security\Auth::jsonResponse(['success' => true, 'message' => 'User deleted successfully.']);
+                }
+                \App\Security\Auth::jsonResponse(['success' => false, 'error' => 'delete_failed', 'message' => 'Failed to delete user or cannot delete last super admin.'], 400);
+            }
+        }
+    }
+
+    // Verification Queue (Facts Verification)
+    if (str_starts_with($route, '/api/admin/verification')) {
+        $user = \App\Security\Auth::requireRole([\App\Security\Auth::ROLE_EDITOR, \App\Security\Auth::ROLE_ADMIN, \App\Security\Auth::ROLE_SUPER_ADMIN]);
+
+        if ($route === '/api/admin/verification' && $method === 'GET') {
+            $items = \App\Models\VerificationModel::getAll();
+            $pendingCount = \App\Models\VerificationModel::getPendingCount();
+            \App\Security\Auth::jsonResponse([
+                'success' => true,
+                'items' => $items,
+                'pending_count' => $pendingCount
+            ]);
+        } elseif (preg_match('#^/api/admin/verification/(\d+)$#', $route, $matches)) {
+            $itemId = (int)$matches[1];
+            $existing = \App\Models\VerificationModel::getById($itemId);
+            if (!$existing) {
+                \App\Security\Auth::jsonResponse(['success' => false, 'error' => 'not_found', 'message' => 'Verification item not found.'], 404);
+            }
+
+            if ($method === 'PATCH' || $method === 'POST') {
+                \App\Security\Auth::requireCsrf();
+                $input = \App\Security\Auth::requireJsonRequest();
+                $allowed = ['status', 'suggested_value', 'admin_notes'];
+                $filtered = array_intersect_key($input, array_flip($allowed));
+
+                $status = (string)($filtered['status'] ?? $existing['status']);
+                $validStatuses = ['pending_verification', 'needs_doctor_approval', 'verified', 'rejected'];
+                if (!in_array($status, $validStatuses, true)) {
+                    \App\Security\Auth::jsonResponse(['success' => false, 'error' => 'validation_error', 'message' => 'Invalid verification status.'], 400);
+                }
+
+                $suggestedValue = isset($filtered['suggested_value']) ? (string)$filtered['suggested_value'] : null;
+                $adminNotes = isset($filtered['admin_notes']) ? (string)$filtered['admin_notes'] : null;
+                $verifiedBy = $user['name'] . ' (' . ucfirst(str_replace('_', ' ', $user['role'])) . ')';
+
+                $ok = \App\Models\VerificationModel::updateStatus($itemId, $status, $suggestedValue, $adminNotes, $verifiedBy);
+                if ($ok) {
+                    \App\Security\Auth::recordAuditEvent('verification_queue_updated', 'verification', (string)$itemId, [
+                        'status' => $status,
+                        'verified_by' => $verifiedBy
+                    ]);
+                    $refreshed = \App\Models\VerificationModel::getById($itemId);
+                    \App\Security\Auth::jsonResponse(['success' => true, 'message' => 'Verification item updated successfully.', 'item' => $refreshed]);
+                }
+                \App\Security\Auth::jsonResponse(['success' => false, 'error' => 'update_failed', 'message' => 'Failed to update verification item.'], 500);
+            }
+        }
+    }
+
+    // Audit Logs (Super Admin only)
+    if ($route === '/api/admin/audit-logs' && $method === 'GET') {
+        \App\Security\Auth::requireRole(\App\Security\Auth::ROLE_SUPER_ADMIN);
+        $limit = min(200, max(1, (int)($_GET['limit'] ?? 50)));
+        $logs = \App\Models\AuditModel::getRecent($limit);
+        // Mask any sensitive keys if present in details
+        $sanitized = array_map(function($log) {
+            if (!empty($log['details_json'])) {
+                $decoded = json_decode($log['details_json'], true);
+                if (is_array($decoded)) {
+                    foreach (['password', 'secret', 'token', 'key'] as $k) {
+                        if (isset($decoded[$k])) $decoded[$k] = '••••••••';
+                    }
+                    $log['details_json'] = json_encode($decoded);
+                }
+            }
+            return $log;
+        }, $logs);
+        \App\Security\Auth::jsonResponse(['success' => true, 'logs' => $sanitized]);
+    }
+
+    // Default-deny behavior for any unclassified or unmatched /api/admin/* routes
+    if (str_starts_with($route, '/api/admin/')) {
+        \App\Security\Auth::requireRole([\App\Security\Auth::ROLE_ADMIN, \App\Security\Auth::ROLE_SUPER_ADMIN]);
+        \App\Security\Auth::jsonResponse(['success' => false, 'error' => 'not_found', 'message' => 'Admin route not found.'], 404);
+    }
+
+    // Admin Auth API Endpoints (Stage 1A)
+    if (strpos($route, '/api/auth/') === 0) {
         $authCtrl = new \App\Controllers\AuthController();
-        $authCtrl->login();
-        exit;
+        if ($route === '/api/auth/csrf' && $method === 'GET') {
+            $authCtrl->csrf();
+            exit;
+        } elseif ($route === '/api/auth/login' && $method === 'POST') {
+            $authCtrl->login();
+            exit;
+        } elseif ($route === '/api/auth/session' && $method === 'GET') {
+            $authCtrl->session();
+            exit;
+        } elseif ($route === '/api/auth/logout') {
+            $authCtrl->logout();
+            exit;
+        }
     }
 
     // 404 for unmatched API routes

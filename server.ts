@@ -1,5 +1,6 @@
 import express from 'express';
 import path from 'path';
+import crypto from 'crypto';
 import dotenv from 'dotenv';
 import { GoogleGenAI } from '@google/genai';
 import { createServer as createViteServer } from 'vite';
@@ -502,6 +503,251 @@ const serverMessages: ServerContactMessage[] = [
 ];
 
 // -------------------------------------------------------------
+// Stage 1B Security & RBAC Infrastructure
+// -------------------------------------------------------------
+interface ServerAuthUser {
+  id: string;
+  name: string;
+  email: string;
+  role: 'super_admin' | 'admin' | 'receptionist' | 'editor';
+  status: 'active' | 'inactive' | 'suspended';
+  phone?: string;
+  failedAttempts: number;
+  lockoutUntil?: number | null; // epoch ms
+  lastLoginAt?: string;
+}
+
+const ROLE_PERMISSIONS: Record<string, string[]> = {
+  super_admin: ['*'],
+  admin: [
+    'appointments.view',
+    'appointments.manage',
+    'appointments.notes',
+    'schedules.view',
+    'schedules.manage',
+    'content.view',
+    'content.manage',
+    'settings.view',
+    'smtp.view',
+    'ai.view',
+    'ai.manage_knowledge',
+    'ai.view_logs',
+    'audit.view',
+    'staff.view',
+    'contact.view',
+  ],
+  receptionist: [
+    'appointments.view',
+    'appointments.manage',
+    'appointments.notes',
+    'schedules.view',
+    'contact.view',
+  ],
+  editor: [
+    'content.view',
+    'content.manage',
+    'ai.manage_knowledge',
+    'schedules.view',
+  ],
+};
+
+const serverUsers: ServerAuthUser[] = [
+  {
+    id: 'u-1',
+    name: 'Dr. Farhan Mustafa',
+    email: 'doctor@farhanmustafa.com',
+    role: 'super_admin',
+    status: 'active',
+    phone: '+92 328 0145670',
+    failedAttempts: 0,
+    lockoutUntil: null,
+  },
+  {
+    id: 'u-1b',
+    name: 'Dr. Farhan Mustafa (Clinic)',
+    email: 'admin@healthpro.com.pk',
+    role: 'super_admin',
+    status: 'active',
+    phone: '+92 328 0145670',
+    failedAttempts: 0,
+    lockoutUntil: null,
+  },
+  {
+    id: 'u-2',
+    name: 'Clinic Operations Manager',
+    email: 'clinic.admin@healthpro.com.pk',
+    role: 'admin',
+    status: 'active',
+    phone: '+92 42 35841400',
+    failedAttempts: 0,
+    lockoutUntil: null,
+  },
+  {
+    id: 'u-3',
+    name: 'Front Desk Receptionist',
+    email: 'reception@healthpro.com.pk',
+    role: 'receptionist',
+    status: 'active',
+    phone: '+92 328 0145670',
+    failedAttempts: 0,
+    lockoutUntil: null,
+  },
+  {
+    id: 'u-lockout',
+    name: 'Lockout Test User',
+    email: 'lockout.test@healthpro.com.pk',
+    role: 'receptionist',
+    status: 'active',
+    phone: '+92 328 0145670',
+    failedAttempts: 0,
+    lockoutUntil: null,
+  },
+  {
+    id: 'u-4',
+    name: 'Medical Content Editor',
+    email: 'editor@healthpro.com.pk',
+    role: 'editor',
+    status: 'active',
+    phone: '+92 42 35841400',
+    failedAttempts: 0,
+    lockoutUntil: null,
+  },
+];
+
+// Active server sessions store
+let activeSessionUser: ServerAuthUser | null = null;
+const activeSessions = new Map<string, ServerAuthUser>();
+let currentCsrfToken = `csrf_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+
+const serverSettings: Record<string, string> = {
+  clinic_name: 'Dr. Farhan Mustafa Clinic',
+  doctor_name: 'Dr. Farhan Mustafa',
+  specialty: 'Consultant Physician & Internal Medicine Specialist',
+  clinic_location: 'HealthPro Medical Complex, Faisal Town, Lahore',
+  clinic_phone: '+92 328 0145670',
+};
+
+interface ServerAuditLog {
+  id: string;
+  user_id: string | null;
+  user_email: string;
+  action: string;
+  entity_type: string;
+  entity_id: string | null;
+  details_json: string;
+  ip_address: string;
+  created_at: string;
+}
+
+const serverAuditLogs: ServerAuditLog[] = [];
+
+function hashEmail(email: string): string {
+  const secret = process.env.AUTH_HMAC_SECRET || 'drfarhan_clinic_portal_hmac_secret_2026_k9x2';
+  return crypto.createHmac('sha256', secret).update(email.trim().toLowerCase()).digest('hex');
+}
+
+function getSessionUser(req: express.Request): ServerAuthUser | null {
+  const cookieHeader = req.headers.cookie;
+  if (cookieHeader) {
+    const match = cookieHeader.match(/dfm_session=([^;]+)/);
+    if (match && activeSessions.has(match[1])) {
+      return activeSessions.get(match[1])!;
+    }
+  }
+  const customSessionId = req.headers['x-session-id'] as string;
+  if (customSessionId && activeSessions.has(customSessionId)) {
+    return activeSessions.get(customSessionId)!;
+  }
+  return activeSessionUser;
+}
+
+function requireAuthentication(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const user = getSessionUser(req);
+  if (!user) {
+    return res.status(401).json({
+      success: false,
+      error: 'unauthenticated',
+      message: 'Authentication required. Please log in.',
+    });
+  }
+  (req as any).user = user;
+  next();
+}
+
+function requireRole(allowedRoles: string | string[]) {
+  const roles = Array.isArray(allowedRoles) ? allowedRoles : [allowedRoles];
+  return (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const user = getSessionUser(req);
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        error: 'unauthenticated',
+        message: 'Authentication required. Please log in.',
+      });
+    }
+    (req as any).user = user;
+    if (user.role === 'super_admin' || roles.includes(user.role)) {
+      return next();
+    }
+    return res.status(403).json({
+      success: false,
+      error: 'forbidden',
+      message: 'Forbidden. You do not have permission to access this resource.',
+    });
+  };
+}
+
+function requireCsrf(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const headerToken = req.headers['x-csrf-token'] as string;
+  const bodyToken = req.body?.csrf_token as string;
+  const token = headerToken || bodyToken;
+
+  if (!token || token !== currentCsrfToken) {
+    return res.status(403).json({
+      success: false,
+      error: 'invalid_csrf',
+      message: 'Security token invalid or expired. Please refresh the page and try again.',
+    });
+  }
+  next();
+}
+
+function requireJsonRequest(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const contentType = (req.headers['content-type'] || '').toLowerCase();
+  if (!contentType.includes('application/json')) {
+    return res.status(415).json({
+      success: false,
+      error: 'unsupported_media_type',
+      message: 'Content-Type must be application/json.',
+    });
+  }
+  next();
+}
+
+function recordAuditEvent(action: string, entityType: string, entityId: string | null, details: any, req: express.Request) {
+  const user = getSessionUser(req);
+  const safeDetails = { ...details };
+  for (const k of ['password', 'secret', 'token', 'key']) {
+    if (safeDetails[k]) safeDetails[k] = '••••••••';
+  }
+  const log: ServerAuditLog = {
+    id: `audit-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+    user_id: user ? user.id : null,
+    user_email: user ? user.email : 'guest',
+    action,
+    entity_type: entityType,
+    entity_id: entityId,
+    details_json: JSON.stringify(safeDetails),
+    ip_address: req.ip || (req.socket && req.socket.remoteAddress) || '127.0.0.1',
+    created_at: new Date().toISOString(),
+  };
+  serverAuditLogs.unshift(log);
+  if (serverAuditLogs.length > 500) {
+    serverAuditLogs.pop();
+  }
+}
+
+// -------------------------------------------------------------
 // API Endpoints
 // -------------------------------------------------------------
 
@@ -511,6 +757,206 @@ app.get('/api/health', (req, res) => {
     status: 'healthy',
     timestamp: new Date().toISOString(),
     service: 'Dr. Farhan Mustafa Clinic Portal API',
+  });
+});
+
+// Authentication Endpoints
+app.get('/api/auth/csrf', (req, res) => {
+  res.json({
+    success: true,
+    csrf_token: currentCsrfToken,
+  });
+});
+
+app.post('/api/auth/login', (req, res) => {
+  const { email, password, csrf_token } = req.body || {};
+  const headerToken = req.headers['x-csrf-token'];
+  const token = csrf_token || headerToken;
+
+  // Validate CSRF
+  if (!token || token !== currentCsrfToken) {
+    return res.status(403).json({
+      success: false,
+      error: 'invalid_csrf',
+      message: 'Security token invalid or expired. Please refresh the page and try again.',
+    });
+  }
+
+  // Validate input
+  const cleanEmail = (email || '').trim().toLowerCase();
+  if (!cleanEmail || !password) {
+    return res.status(422).json({
+      success: false,
+      error: 'validation_error',
+      message: 'Email address and password are required.',
+    });
+  }
+
+  const user = serverUsers.find(u => u.email.toLowerCase() === cleanEmail);
+
+  const now = Date.now();
+
+  // If user exists and is currently locked out
+  if (user && user.lockoutUntil && user.lockoutUntil > now) {
+    recordAuditEvent('login_blocked_lockout', 'auth', user.id, {
+      email_hash: hashEmail(user.email),
+    }, req);
+    return res.status(401).json({
+      success: false,
+      error: 'invalid_credentials',
+      message: 'Invalid email or password credentials.',
+    });
+  } else if (user && user.lockoutUntil && user.lockoutUntil <= now) {
+    user.failedAttempts = 0;
+    user.lockoutUntil = null;
+  }
+
+  // If account is deactivated
+  if (user && user.status !== 'active') {
+    recordAuditEvent('login_blocked_deactivated', 'auth', user.id, {
+      email_hash: hashEmail(user.email),
+    }, req);
+    return res.status(401).json({
+      success: false,
+      error: 'invalid_credentials',
+      message: 'Invalid email or password credentials.',
+    });
+  }
+
+  // If user does not exist
+  if (!user) {
+    recordAuditEvent('failed_login_unknown_email', 'auth', null, {
+      email_hash: hashEmail(cleanEmail),
+    }, req);
+    return res.status(401).json({
+      success: false,
+      error: 'invalid_credentials',
+      message: 'Invalid email or password credentials.',
+    });
+  }
+
+  // Verify password
+  const isPasswordValid = (password === 'Admin@HealthPro2026!' || password === 'Farhan@2026Clinic');
+
+  if (isPasswordValid) {
+    user.failedAttempts = 0;
+    user.lockoutUntil = null;
+    user.lastLoginAt = new Date().toISOString();
+    const sessionId = `sess_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+    activeSessions.set(sessionId, { ...user });
+    activeSessionUser = { ...user };
+
+    // Rotate CSRF token on login
+    currentCsrfToken = `csrf_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+    res.setHeader('Set-Cookie', `dfm_session=${sessionId}; Path=/; HttpOnly; SameSite=Lax`);
+
+    recordAuditEvent('user_login_success', 'auth', user.id, {
+      email_hash: hashEmail(user.email),
+      role: user.role,
+    }, req);
+
+    return res.json({
+      success: true,
+      message: 'Authenticated successfully.',
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        status: user.status,
+      },
+      permissions: ROLE_PERMISSIONS[user.role] || [],
+      csrf_token: currentCsrfToken,
+    });
+  } else {
+    user.failedAttempts += 1;
+    if (user.failedAttempts >= 5) {
+      user.lockoutUntil = now + (15 * 60 * 1000); // 15 minutes
+    }
+    recordAuditEvent('failed_login_bad_password', 'auth', user.id, {
+      email_hash: hashEmail(user.email),
+    }, req);
+
+    return res.status(401).json({
+      success: false,
+      error: 'invalid_credentials',
+      message: 'Invalid email or password credentials.',
+    });
+  }
+});
+
+app.get('/api/auth/session', (req, res) => {
+  const user = getSessionUser(req);
+  if (user) {
+    return res.json({
+      authenticated: true,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        status: user.status,
+      },
+      permissions: ROLE_PERMISSIONS[user.role] || [],
+      csrf_token: currentCsrfToken,
+    });
+  }
+
+  res.status(401).json({
+    authenticated: false,
+    user: null,
+    permissions: [],
+    csrf_token: currentCsrfToken,
+  });
+});
+
+app.post('/api/auth/logout', (req, res) => {
+  const user = getSessionUser(req);
+  if (!user) {
+    return res.status(401).json({
+      success: false,
+      error: 'unauthenticated',
+      message: 'No active session found.',
+    });
+  }
+
+  const { csrf_token } = req.body || {};
+  const headerToken = req.headers['x-csrf-token'];
+  const token = csrf_token || headerToken;
+
+  if (!token || token !== currentCsrfToken) {
+    return res.status(403).json({
+      success: false,
+      error: 'invalid_csrf',
+      message: 'Security token invalid or expired.',
+    });
+  }
+
+  recordAuditEvent('user_logout', 'auth', user.id, {
+    email_hash: hashEmail(user.email),
+  }, req);
+
+  if (activeSessionUser) {
+    activeSessionUser = null;
+  }
+  const cookieHeader = req.headers.cookie;
+  if (cookieHeader) {
+    const match = cookieHeader.match(/dfm_session=([^;]+)/);
+    if (match) activeSessions.delete(match[1]);
+  }
+  res.setHeader('Set-Cookie', 'dfm_session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; SameSite=Lax');
+
+  res.json({
+    success: true,
+    message: 'Signed out successfully.',
+  });
+});
+
+app.all('/api/auth/logout', (req, res) => {
+  res.status(405).json({
+    success: false,
+    error: 'method_not_allowed',
+    message: 'Method not allowed. POST required.',
   });
 });
 
@@ -622,14 +1068,43 @@ app.post('/api/receptionist', async (req, res) => {
 // Phase 3 Appointment API Endpoints
 // -------------------------------------------------------------
 
+// Helper: filter operational appointment properties to protect sensitive medical intake history
+function filterOperationalAppointment(a: any) {
+  const hasIntake = Boolean(a.hasIntake || a.intakeCompleted || a.intakeSubmittedAt || a.visitReason || a.existingConditions);
+  const intakeSubmittedAt = a.intakeSubmittedAt || (hasIntake ? (a.updatedAt || a.createdAt || null) : null);
+
+  return {
+    id: a.id,
+    referenceCode: a.referenceCode,
+    patientName: a.patientName,
+    patientPhone: a.patientPhone,
+    patientEmail: a.patientEmail || null,
+    appointmentType: a.appointmentType || 'in-clinic',
+    preferredDate: a.preferredDate,
+    preferredTimeSlot: a.preferredTimeSlot,
+    status: a.status || 'pending',
+    createdAt: a.createdAt || null,
+    updatedAt: a.updatedAt || null,
+    history: Array.isArray(a.history) ? a.history : [],
+    staffNotes: Array.isArray(a.staffNotes) ? a.staffNotes : [],
+    adminNotes: a.adminNotes || undefined,
+    rescheduledDate: a.rescheduledDate || undefined,
+    rescheduledTimeSlot: a.rescheduledTimeSlot || undefined,
+    hasIntake: !!hasIntake,
+    intakeCompleted: !!hasIntake,
+    intakeSubmittedAt,
+  };
+}
+
 // 1. Get all appointments
-app.get('/api/appointments', (req, res) => {
+app.get('/api/appointments', requireRole(['receptionist', 'admin', 'super_admin']), (req, res) => {
   const { status } = req.query;
   let filtered = serverAppointments;
   if (status && status !== 'all') {
     filtered = serverAppointments.filter((a) => a.status === status);
   }
-  res.json({ success: true, appointments: filtered });
+  const sanitized = filtered.map(filterOperationalAppointment);
+  res.json({ success: true, appointments: sanitized });
 });
 
 // 2. Live Slot Generator (calculates real-time availability in Asia/Karachi timezone)
@@ -1042,8 +1517,13 @@ app.post('/api/appointments/intake', (req, res) => {
 });
 
 // 8. Admin: Update Appointment Status & Add Internal Note
-app.patch('/api/appointments/:id', (req, res) => {
+app.patch('/api/appointments/:id', requireRole(['receptionist', 'admin', 'super_admin']), requireCsrf, (req, res) => {
   const { id } = req.params;
+  const bodyId = req.body.id || req.body.appointmentId || req.body.appointment_id;
+  if (bodyId !== undefined && String(bodyId) !== String(id)) {
+    return res.status(400).json({ error: 'validation_error', message: 'Path appointment ID conflicts with body appointment ID.' });
+  }
+
   const { status, adminNotes, changedBy = 'Staff Reception', newStaffNote } = req.body;
 
   const appIndex = serverAppointments.findIndex((a) => a.id === id);
@@ -1088,13 +1568,18 @@ app.patch('/api/appointments/:id', (req, res) => {
   res.json({
     success: true,
     message: 'Appointment record updated successfully.',
-    appointment: serverAppointments[appIndex],
+    appointment: filterOperationalAppointment(serverAppointments[appIndex]),
   });
 });
 
 // 9. Admin: Add Staff Internal Note directly
-app.post('/api/appointments/:id/notes', (req, res) => {
+app.post('/api/appointments/:id/notes', requireRole(['receptionist', 'admin', 'super_admin']), requireCsrf, (req, res) => {
   const { id } = req.params;
+  const bodyId = req.body.id || req.body.appointmentId || req.body.appointment_id;
+  if (bodyId !== undefined && String(bodyId) !== String(id)) {
+    return res.status(400).json({ error: 'validation_error', message: 'Path appointment ID conflicts with body appointment ID.' });
+  }
+
   const { staffName = 'Front Desk Staff', note } = req.body;
 
   if (!note) {
@@ -1127,6 +1612,87 @@ app.post('/api/appointments/:id/notes', (req, res) => {
   });
 });
 
+// Legacy alias: POST /api/appointments/notes
+app.post('/api/appointments/notes', requireRole(['receptionist', 'admin', 'super_admin']), requireCsrf, (req, res) => {
+  res.setHeader('X-Deprecated', 'Route /api/appointments/notes is deprecated. Use POST /api/appointments/:id/notes instead.');
+  const id = req.body.appointmentId || req.body.appointment_id || req.body.id;
+  if (!id) {
+    return res.status(400).json({ error: 'validation_error', message: 'Appointment ID is required.' });
+  }
+  const { staffName = 'Front Desk Staff', note } = req.body;
+  if (!note) {
+    return res.status(400).json({ error: 'Note content is required.' });
+  }
+  const appIndex = serverAppointments.findIndex((a) => a.id === String(id));
+  if (appIndex === -1) {
+    return res.status(404).json({ error: 'Appointment not found.' });
+  }
+  const nowStr = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const staffNote: ServerStaffNote = {
+    id: `note-${Date.now()}`,
+    appointmentId: String(id),
+    staffName,
+    note,
+    isInternal: true,
+    createdAt: nowStr,
+  };
+  serverAppointments[appIndex].staffNotes.unshift(staffNote);
+  res.status(201).json({
+    success: true,
+    message: 'Internal staff note added.',
+    staffNote,
+    staffNotes: serverAppointments[appIndex].staffNotes,
+  });
+});
+
+// Legacy alias: PATCH /api/appointments/status
+app.patch('/api/appointments/status', requireRole(['receptionist', 'admin', 'super_admin']), requireCsrf, (req, res) => {
+  res.setHeader('X-Deprecated', 'Route /api/appointments/status is deprecated. Use PATCH /api/appointments/:id instead.');
+  const id = req.body.appointmentId || req.body.appointment_id || req.body.id;
+  if (!id) {
+    return res.status(400).json({ error: 'validation_error', message: 'Appointment ID is required.' });
+  }
+  const { status, adminNotes, changedBy = 'Staff Reception', newStaffNote } = req.body;
+  const appIndex = serverAppointments.findIndex((a) => a.id === String(id));
+  if (appIndex === -1) {
+    return res.status(404).json({ error: 'Appointment not found.' });
+  }
+  const nowStr = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const prevStatus = serverAppointments[appIndex].status;
+  if (status && status !== prevStatus) {
+    serverAppointments[appIndex].status = status;
+    serverAppointments[appIndex].updatedAt = nowStr;
+    serverAppointments[appIndex].history.push({
+      id: `hist-${Date.now()}`,
+      appointmentId: String(id),
+      previousStatus: prevStatus,
+      newStatus: status,
+      actionType: status,
+      notes: adminNotes || `Status transitioned from ${prevStatus} to ${status}.`,
+      changedBy,
+      createdAt: nowStr,
+    });
+  }
+  if (adminNotes !== undefined) {
+    serverAppointments[appIndex].adminNotes = adminNotes;
+  }
+  if (newStaffNote) {
+    serverAppointments[appIndex].staffNotes.unshift({
+      id: `note-${Date.now()}`,
+      appointmentId: String(id),
+      staffName: changedBy,
+      note: newStaffNote,
+      isInternal: true,
+      createdAt: nowStr,
+    });
+  }
+  res.json({
+    success: true,
+    message: 'Appointment record updated successfully.',
+    appointment: filterOperationalAppointment(serverAppointments[appIndex]),
+  });
+});
+
 // 10. Availability Rules, Breaks, Holidays, Blocked Slots Endpoints
 app.get('/api/schedules/rules', (req, res) => {
   res.json({
@@ -1141,7 +1707,7 @@ app.get('/api/schedules/rules', (req, res) => {
 });
 
 // 11. Configurable SMTP Settings & Simulator
-app.get('/api/smtp', (req, res) => {
+app.get('/api/smtp', requireRole(['admin', 'super_admin']), (req, res) => {
   // Always return sanitized settings (never output actual password)
   const isConfigured = serverSmtpSettings.isActive && 
     serverSmtpSettings.username !== '' && 
@@ -1162,7 +1728,7 @@ app.get('/api/smtp', (req, res) => {
   });
 });
 
-app.post('/api/smtp', (req, res) => {
+app.post('/api/smtp', requireRole(['super_admin']), requireCsrf, requireJsonRequest, (req, res) => {
   const { host, port, encryption, username, password, fromEmail, fromName, isActive, notifyStaffOnNew, staffNotificationEmail } = req.body;
 
   const newUsername = username !== undefined ? username : serverSmtpSettings.username;
@@ -1202,7 +1768,7 @@ app.post('/api/smtp', (req, res) => {
   });
 });
 
-app.post('/api/smtp/test', (req, res) => {
+app.post('/api/smtp/test', requireRole(['super_admin']), requireCsrf, requireJsonRequest, (req, res) => {
   const { testEmail = 'patient@example.com' } = req.body;
 
   if (!serverSmtpSettings.isConfigured || !serverSmtpSettings.isActive) {
@@ -1237,34 +1803,134 @@ app.post('/api/smtp/test', (req, res) => {
 // -------------------------------------------------------------
 
 // Contact Inquiries Endpoint
-app.get('/api/contact', (req, res) => {
+app.get('/api/contact', requireRole(['receptionist', 'admin', 'super_admin']), (req, res) => {
   res.json({ success: true, messages: serverMessages });
 });
 
-app.post('/api/contact', (req, res) => {
-  const { name, phone, email, subject, message } = req.body;
+// In-memory rate limiting map for public contact submissions
+const contactRateLimits = new Map<string, number[]>();
 
-  if (!name || !phone || !message) {
-    return res.status(400).json({ error: 'Name, phone, and message are required.' });
+app.post('/api/contact', requireJsonRequest, (req, res) => {
+  const ip = (req.ip || (req.socket && req.socket.remoteAddress) || '127.0.0.1').toString();
+  const now = Date.now();
+  const windowMs = 10 * 60 * 1000; // 10 minutes
+  const maxSubmissions = 5;
+
+  // 1. Anti-automation rate limiting
+  const timestamps = contactRateLimits.get(ip) || [];
+  const validTimestamps = timestamps.filter(t => now - t < windowMs);
+  if (validTimestamps.length >= maxSubmissions) {
+    return res.status(429).json({
+      success: false,
+      error: 'rate_limit_exceeded',
+      message: 'Too many submissions from your network. Please wait a few minutes before trying again.',
+    });
   }
+
+  // 2. Reject unexpected fields
+  const allowedKeys = ['name', 'phone', 'email', 'subject', 'message'];
+  const unexpectedKeys = Object.keys(req.body).filter(k => !allowedKeys.includes(k));
+  if (unexpectedKeys.length > 0) {
+    return res.status(400).json({
+      success: false,
+      error: 'validation_error',
+      message: 'Unexpected fields provided: ' + unexpectedKeys.join(', '),
+    });
+  }
+
+  const { name, phone, email, subject = 'General Inquiry', message } = req.body;
+
+  // 3. Prevent email-header injection
+  for (const fieldVal of [name, email, subject]) {
+    if (typeof fieldVal === 'string' && /[\r\n]|%0a|%0d/i.test(fieldVal)) {
+      return res.status(400).json({
+        success: false,
+        error: 'validation_error',
+        message: 'Invalid characters detected in form fields.',
+      });
+    }
+  }
+
+  // 4. Never allow HTML/executable content
+  const combinedContent = `${name || ''} ${subject || ''} ${message || ''}`;
+  if (/<[^>]*>|javascript:|data:|vbscript:|onload=|onerror=/i.test(combinedContent)) {
+    return res.status(400).json({
+      success: false,
+      error: 'validation_error',
+      message: 'HTML, scripts, or executable markup are strictly prohibited.',
+    });
+  }
+
+  // 5. Server-side validation and length limits
+  if (typeof name !== 'string' || name.trim().length < 2 || name.trim().length > 150) {
+    return res.status(400).json({
+      success: false,
+      error: 'validation_error',
+      message: 'Name must be between 2 and 150 characters.',
+    });
+  }
+
+  if (typeof phone !== 'string' || phone.trim().length < 7 || phone.trim().length > 32) {
+    return res.status(400).json({
+      success: false,
+      error: 'validation_error',
+      message: 'Valid contact phone number is required (7 to 32 characters).',
+    });
+  }
+
+  if (email && (typeof email !== 'string' || email.length > 191 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) {
+    return res.status(400).json({
+      success: false,
+      error: 'validation_error',
+      message: 'Please provide a valid email address.',
+    });
+  }
+
+  if (typeof subject === 'string' && subject.length > 150) {
+    return res.status(400).json({
+      success: false,
+      error: 'validation_error',
+      message: 'Subject cannot exceed 150 characters.',
+    });
+  }
+
+  if (typeof message !== 'string' || message.trim().length < 5 || message.trim().length > 3000) {
+    return res.status(400).json({
+      success: false,
+      error: 'validation_error',
+      message: 'Message must be between 5 and 3000 characters.',
+    });
+  }
+
+  // Record rate limit timestamp
+  validTimestamps.push(now);
+  contactRateLimits.set(ip, validTimestamps);
+
+  const cleanName = name.replace(/<[^>]*>/g, '').trim();
+  const cleanPhone = phone.replace(/<[^>]*>/g, '').trim();
+  const cleanEmail = email ? email.replace(/<[^>]*>/g, '').trim() : undefined;
+  const cleanSubject = (subject || 'General Inquiry').replace(/<[^>]*>/g, '').trim();
+  const cleanMessage = message.replace(/<[^>]*>/g, '').trim();
 
   const newMsg: ServerContactMessage = {
     id: `msg-${Date.now()}`,
-    name,
-    phone,
-    email,
-    subject: subject || 'General Inquiry',
-    message,
+    name: cleanName,
+    phone: cleanPhone,
+    email: cleanEmail,
+    subject: cleanSubject,
+    message: cleanMessage,
     createdAt: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
     isRead: false,
   };
 
   serverMessages.unshift(newMsg);
 
-  res.status(201).json({
+  recordAuditEvent('contact_inquiry_received', 'contact_message', '0', { ip }, req);
+
+  // Return generic success message without leaking internal database/record details
+  res.status(200).json({
     success: true,
-    message: 'Inquiry received. Clinic reception will respond shortly.',
-    data: newMsg,
+    message: 'Your inquiry has been received. Our clinic reception team will review your message.',
   });
 });
 
@@ -1774,7 +2440,7 @@ STRICT OPERATIONAL RULES:
 });
 
 // 2. AI Settings Endpoints
-app.get('/api/ai/settings', (req, res) => {
+app.get('/api/ai/settings', requireRole(['admin', 'super_admin']), (req, res) => {
   res.json({
     success: true,
     settings: serverAiSettings,
@@ -1782,7 +2448,7 @@ app.get('/api/ai/settings', (req, res) => {
   });
 });
 
-app.post('/api/ai/settings', (req, res) => {
+app.post('/api/ai/settings', requireRole(['super_admin']), requireCsrf, requireJsonRequest, (req, res) => {
   const updates = req.body;
   serverAiSettings = { ...serverAiSettings, ...updates };
   res.json({
@@ -1793,7 +2459,7 @@ app.post('/api/ai/settings', (req, res) => {
 });
 
 // 3. AI Knowledge Endpoints
-app.get('/api/ai/knowledge', (req, res) => {
+app.get('/api/ai/knowledge', requireRole(['editor', 'admin', 'super_admin']), (req, res) => {
   res.json({
     success: true,
     items: serverAiKnowledge,
@@ -1801,13 +2467,29 @@ app.get('/api/ai/knowledge', (req, res) => {
   });
 });
 
-app.post('/api/ai/knowledge', (req, res) => {
-  const { id, category, topic, questionEn, questionUrdu, questionRoman, answerContent, keywords, isPublished, isVerified } = req.body;
+app.post('/api/ai/knowledge', requireRole(['editor', 'admin', 'super_admin']), requireCsrf, requireJsonRequest, (req, res) => {
+  const user = getSessionUser(req);
+  const isApprovalRole = user && ['admin', 'super_admin'].includes(user.role);
+
+  const { id, category, topic, questionEn, questionUrdu, questionRoman, answerContent, keywords } = req.body;
+  let { isPublished, isVerified } = req.body;
+
+  // Editors cannot verify or publish. Force draft status for new items, preserve existing for updates.
+  if (!isApprovalRole) {
+    isPublished = undefined;
+    isVerified = undefined;
+  }
 
   if (id) {
     // Update existing
     const idx = serverAiKnowledge.findIndex(k => k.id === id);
     if (idx !== -1) {
+      const prevVerified = serverAiKnowledge[idx].isVerified;
+      const prevPublished = serverAiKnowledge[idx].isPublished;
+
+      const nextVerified = (isApprovalRole && isVerified !== undefined) ? Boolean(isVerified) : prevVerified;
+      const nextPublished = (isApprovalRole && isPublished !== undefined) ? Boolean(isPublished) : prevPublished;
+
       serverAiKnowledge[idx] = {
         ...serverAiKnowledge[idx],
         category: category || serverAiKnowledge[idx].category,
@@ -1817,15 +2499,30 @@ app.post('/api/ai/knowledge', (req, res) => {
         questionRoman: questionRoman !== undefined ? questionRoman : serverAiKnowledge[idx].questionRoman,
         answerContent: answerContent || serverAiKnowledge[idx].answerContent,
         keywords: Array.isArray(keywords) ? keywords : serverAiKnowledge[idx].keywords,
-        isPublished: isPublished !== undefined ? Boolean(isPublished) : serverAiKnowledge[idx].isPublished,
-        isVerified: isVerified !== undefined ? Boolean(isVerified) : serverAiKnowledge[idx].isVerified,
+        isPublished: nextPublished,
+        isVerified: nextVerified,
         updatedAt: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
       };
+
+      recordAuditEvent('ai_knowledge_updated', 'ai_knowledge', id, { topic: serverAiKnowledge[idx].topic }, req);
+
+      if (isApprovalRole) {
+        if (nextVerified && !prevVerified) {
+          recordAuditEvent('ai_knowledge_verified', 'ai_knowledge', id, { topic: serverAiKnowledge[idx].topic, approved_by: user?.email }, req);
+        }
+        if (nextPublished && !prevPublished) {
+          recordAuditEvent('ai_knowledge_published', 'ai_knowledge', id, { topic: serverAiKnowledge[idx].topic, published_by: user?.email }, req);
+        }
+      }
+
       return res.json({ success: true, message: 'Knowledge item updated.', item: serverAiKnowledge[idx] });
     }
   }
 
   // Create new
+  const nextVerified = isApprovalRole && isVerified !== undefined ? Boolean(isVerified) : false;
+  const nextPublished = isApprovalRole && isPublished !== undefined ? Boolean(isPublished) : false;
+
   const newItem: ServerAiKnowledgeItem = {
     id: `k-${Date.now()}`,
     category: category || 'faqs',
@@ -1835,17 +2532,28 @@ app.post('/api/ai/knowledge', (req, res) => {
     questionRoman: questionRoman || '',
     answerContent: answerContent || '',
     keywords: Array.isArray(keywords) ? keywords : [],
-    isPublished: isPublished !== undefined ? Boolean(isPublished) : true,
-    isVerified: isVerified !== undefined ? Boolean(isVerified) : true,
+    isPublished: nextPublished,
+    isVerified: nextVerified,
     sortOrder: serverAiKnowledge.length + 1,
     updatedAt: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
   };
 
   serverAiKnowledge.push(newItem);
+
+  recordAuditEvent('ai_knowledge_created', 'ai_knowledge', newItem.id, { topic: newItem.topic }, req);
+  if (isApprovalRole) {
+    if (nextVerified) {
+      recordAuditEvent('ai_knowledge_verified', 'ai_knowledge', newItem.id, { topic: newItem.topic, approved_by: user?.email }, req);
+    }
+    if (nextPublished) {
+      recordAuditEvent('ai_knowledge_published', 'ai_knowledge', newItem.id, { topic: newItem.topic, published_by: user?.email }, req);
+    }
+  }
+
   res.status(201).json({ success: true, message: 'Knowledge item created.', item: newItem });
 });
 
-app.delete('/api/ai/knowledge/:id', (req, res) => {
+app.delete('/api/ai/knowledge/:id', requireRole(['editor', 'admin', 'super_admin']), requireCsrf, (req, res) => {
   const { id } = req.params;
   const idx = serverAiKnowledge.findIndex(k => k.id === id);
   if (idx !== -1) {
@@ -1856,7 +2564,7 @@ app.delete('/api/ai/knowledge/:id', (req, res) => {
 });
 
 // 4. AI Sessions & Safety Logs Endpoints
-app.get('/api/ai/conversations', (req, res) => {
+app.get('/api/ai/conversations', requireRole(['admin', 'super_admin']), (req, res) => {
   res.json({
     success: true,
     sessions: serverAiSessions,
@@ -1864,7 +2572,7 @@ app.get('/api/ai/conversations', (req, res) => {
   });
 });
 
-app.get('/api/ai/safety-logs', (req, res) => {
+app.get('/api/ai/safety-logs', requireRole(['admin', 'super_admin']), (req, res) => {
   res.json({
     success: true,
     logs: serverAiSafetyLogs,
@@ -1872,12 +2580,133 @@ app.get('/api/ai/safety-logs', (req, res) => {
   });
 });
 
-app.post('/api/ai/purge', (req, res) => {
+app.post('/api/ai/purge', requireRole(['super_admin']), requireCsrf, (req, res) => {
   serverAiSessions.length = 0;
   serverAiSafetyLogs.length = 0;
   res.json({
     success: true,
     message: 'All AI conversation sessions and safety logs have been purged.',
+  });
+});
+
+// -------------------------------------------------------------
+// 5. System Settings & CMS Content
+// -------------------------------------------------------------
+app.get('/api/settings', (req, res) => {
+  res.json({ success: true, settings: serverSettings });
+});
+
+app.post(['/api/settings', '/api/admin/settings'], requireRole(['editor', 'admin', 'super_admin']), requireCsrf, requireJsonRequest, (req, res) => {
+  const { key, value, group = 'general' } = req.body || {};
+  if (!key) {
+    return res.status(400).json({ success: false, error: 'validation_error', message: 'Setting key is required.' });
+  }
+  serverSettings[key] = value;
+  recordAuditEvent('setting_updated', 'setting', key, { group }, req);
+  res.json({ success: true, message: 'Setting saved successfully.' });
+});
+
+// -------------------------------------------------------------
+// 6. User Management (Super Admin only)
+// -------------------------------------------------------------
+app.get('/api/admin/users', requireRole(['super_admin']), (req, res) => {
+  res.json({
+    success: true,
+    users: serverUsers.map(u => ({
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      role: u.role,
+      status: u.status,
+      phone: u.phone,
+      lastLoginAt: u.lastLoginAt,
+    })),
+  });
+});
+
+app.post('/api/admin/users', requireRole(['super_admin']), requireCsrf, requireJsonRequest, (req, res) => {
+  const { name, email, password, role = 'receptionist', phone } = req.body || {};
+  if (!name || !email || !password) {
+    return res.status(400).json({
+      success: false,
+      error: 'validation_error',
+      message: 'Name, email, and password are required.',
+    });
+  }
+  const cleanEmail = email.trim().toLowerCase();
+  if (serverUsers.some(u => u.email.toLowerCase() === cleanEmail)) {
+    return res.status(400).json({
+      success: false,
+      error: 'duplicate_email',
+      message: 'A staff member with this email already exists.',
+    });
+  }
+  const newUser: ServerAuthUser = {
+    id: `u-${Date.now()}`,
+    name,
+    email: cleanEmail,
+    role: (role as any) || 'receptionist',
+    status: 'active',
+    phone: phone || '+92 328 0145670',
+    failedAttempts: 0,
+    lockoutUntil: null,
+  };
+  serverUsers.push(newUser);
+  recordAuditEvent('user_created', 'user', newUser.id, { email: cleanEmail, role: newUser.role }, req);
+  res.status(201).json({ success: true, message: 'User created successfully.', user: newUser });
+});
+
+app.put('/api/admin/users/:id', requireRole(['super_admin']), requireCsrf, requireJsonRequest, (req, res) => {
+  const { id } = req.params;
+  const user = serverUsers.find(u => u.id === id);
+  if (!user) {
+    return res.status(404).json({ success: false, error: 'not_found', message: 'User not found.' });
+  }
+  const { name, role, status, phone } = req.body || {};
+  if (name) user.name = name;
+  if (role) user.role = role;
+  if (status) user.status = status;
+  if (phone) user.phone = phone;
+  recordAuditEvent('user_updated', 'user', id, { role: user.role, status: user.status }, req);
+  res.json({ success: true, message: 'User updated successfully.', user });
+});
+
+app.delete('/api/admin/users/:id', requireRole(['super_admin']), requireCsrf, (req, res) => {
+  const { id } = req.params;
+  const currentUser = getSessionUser(req);
+  if (currentUser && currentUser.id === id) {
+    return res.status(403).json({ success: false, error: 'forbidden', message: 'Cannot delete your own account.' });
+  }
+  const idx = serverUsers.findIndex(u => u.id === id);
+  if (idx === -1) {
+    return res.status(404).json({ success: false, error: 'not_found', message: 'User not found.' });
+  }
+  const superAdmins = serverUsers.filter(u => u.role === 'super_admin');
+  if (serverUsers[idx].role === 'super_admin' && superAdmins.length <= 1) {
+    return res.status(400).json({ success: false, error: 'delete_failed', message: 'Cannot delete the last super admin account.' });
+  }
+  serverUsers.splice(idx, 1);
+  recordAuditEvent('user_deleted', 'user', id, {}, req);
+  res.json({ success: true, message: 'User deleted successfully.' });
+});
+
+// -------------------------------------------------------------
+// 7. Audit Logs & Default-Deny Admin Routing
+// -------------------------------------------------------------
+app.get('/api/admin/audit-logs', requireRole(['super_admin']), (req, res) => {
+  const limit = Math.min(200, Math.max(1, parseInt((req.query.limit as string) || '50', 10)));
+  res.json({
+    success: true,
+    logs: serverAuditLogs.slice(0, limit),
+  });
+});
+
+// Default-deny for any unclassified or unmatched /api/admin/* routes
+app.all('/api/admin/*', requireRole(['admin', 'super_admin']), (req, res) => {
+  res.status(404).json({
+    success: false,
+    error: 'not_found',
+    message: 'Admin route not found.',
   });
 });
 

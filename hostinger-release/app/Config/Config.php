@@ -81,6 +81,7 @@ class Config
             'database' => EnvLoader::get('DB_NAME', 'drfarhan_clinic'),
             'username' => EnvLoader::get('DB_USER', 'root'),
             'password' => EnvLoader::get('DB_PASS', ''),
+            'socket' => EnvLoader::get('DB_SOCKET', ''),
             'charset' => 'utf8mb4'
         ];
     }

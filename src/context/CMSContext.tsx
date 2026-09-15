@@ -45,9 +45,9 @@ import {
 interface CMSContextType {
   currentUser: CMSUser | null;
   currentRole: UserRole | null;
-  login: (email: string, role: UserRole) => boolean;
-  logout: () => void;
-  switchRole: (role: UserRole) => void;
+  login: (email: string, password: string) => Promise<{ success: boolean; message?: string; error?: string }>;
+  logout: () => Promise<void>;
+  isAuthLoading: boolean;
   
   // Data stores
   clinicInfo: typeof INITIAL_CLINIC_INFO;
@@ -281,7 +281,9 @@ const INITIAL_CREDENTIALS: CredentialItem[] = [
 
 export const CMSProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Authentication & Role State
-  const [currentUser, setCurrentUser] = useState<CMSUser | null>(DEFAULT_USERS[0]); // Default logged in as Super Admin for preview
+  const [currentUser, setCurrentUser] = useState<CMSUser | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
+  const [csrfToken, setCsrfToken] = useState<string>('');
   const [clinicInfo, setClinicInfo] = useState(INITIAL_CLINIC_INFO);
   const [doctorProfile, setDoctorProfile] = useState<DoctorProfileData>({
     name: INITIAL_CLINIC_INFO.doctorName,
@@ -934,34 +936,134 @@ export const CMSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const clearNotification = () => setNotification(null);
 
-  const login = (email: string, role: UserRole): boolean => {
-    const found = users.find(u => u.email.toLowerCase() === email.toLowerCase()) || {
-      id: 'usr-demo',
-      name: role === 'super_admin' ? 'Super Admin' : role === 'admin' ? 'Admin' : role === 'receptionist' ? 'Receptionist' : 'Content Editor',
-      email,
-      role,
-      status: 'active' as const
+  // Restore authenticated session from server on mount
+  useEffect(() => {
+    let isMounted = true;
+    const restoreSession = async () => {
+      try {
+        setIsAuthLoading(true);
+        const res = await fetch('/api/auth/session', {
+          method: 'GET',
+          headers: { 'Accept': 'application/json' },
+          credentials: 'include',
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (isMounted && data.authenticated && data.user) {
+            const restoredUser: CMSUser = {
+              id: String(data.user.id || 'usr-1'),
+              name: data.user.name,
+              email: data.user.email,
+              role: data.user.role as UserRole,
+              status: (data.user.status as any) || 'active',
+              lastLogin: 'Active session',
+            };
+            setCurrentUser(restoredUser);
+            if (data.csrf_token) setCsrfToken(data.csrf_token);
+          }
+        } else {
+          // Pre-fetch CSRF token for the login form
+          const csrfRes = await fetch('/api/auth/csrf', {
+            method: 'GET',
+            credentials: 'include',
+          });
+          if (csrfRes.ok) {
+            const csrfData = await csrfRes.json();
+            if (isMounted && csrfData.csrf_token) {
+              setCsrfToken(csrfData.csrf_token);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Session verification notice:', err);
+      } finally {
+        if (isMounted) setIsAuthLoading(false);
+      }
     };
-    setCurrentUser(found);
-    showNotification(`Signed in successfully as ${found.name} (${found.role.replace('_', ' ').toUpperCase()})`, 'success');
-    return true;
+
+    restoreSession();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const login = async (
+    email: string,
+    password: string
+  ): Promise<{ success: boolean; message?: string; error?: string }> => {
+    try {
+      // Ensure active CSRF token exists
+      let tokenToUse = csrfToken;
+      if (!tokenToUse) {
+        try {
+          const csrfRes = await fetch('/api/auth/csrf', { credentials: 'include' });
+          if (csrfRes.ok) {
+            const csrfData = await csrfRes.json();
+            tokenToUse = csrfData.csrf_token;
+            setCsrfToken(tokenToUse);
+          }
+        } catch (e) {}
+      }
+
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': tokenToUse || '',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          email: email.trim(),
+          password: password || '',
+          csrf_token: tokenToUse,
+        }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (response.ok && data.success && data.user) {
+        const loggedInUser: CMSUser = {
+          id: String(data.user.id || 'usr-1'),
+          name: data.user.name,
+          email: data.user.email,
+          role: data.user.role as UserRole,
+          status: (data.user.status as any) || 'active',
+          lastLogin: 'Just now',
+        };
+        setCurrentUser(loggedInUser);
+        if (data.csrf_token) setCsrfToken(data.csrf_token);
+        showNotification(`Signed in successfully as ${loggedInUser.name} (${loggedInUser.role.replace('_', ' ').toUpperCase()})`, 'success');
+        return { success: true, message: data.message };
+      } else {
+        const errorMsg = data.message || 'Invalid email or password credentials.';
+        showNotification(errorMsg, 'error');
+        return { success: false, message: errorMsg, error: data.error };
+      }
+    } catch (err) {
+      const errorMsg = 'Unable to connect to authentication service. Please check your network connection.';
+      showNotification(errorMsg, 'error');
+      return { success: false, message: errorMsg, error: 'network_error' };
+    }
   };
 
-  const logout = () => {
-    setCurrentUser(null);
-    showNotification('Signed out from Admin CMS session.', 'info');
-  };
-
-  const switchRole = (role: UserRole) => {
-    const userForRole = users.find(u => u.role === role) || {
-      id: `usr-${role}`,
-      name: role === 'super_admin' ? 'Super Admin' : role === 'admin' ? 'Clinic Administrator' : role === 'receptionist' ? 'Front Desk Receptionist' : 'Medical Content Editor',
-      email: `${role}@healthpro.com.pk`,
-      role,
-      status: 'active' as const
-    };
-    setCurrentUser(userForRole);
-    showNotification(`Switched active role to: ${userForRole.role.toUpperCase()}`, 'info');
+  const logout = async (): Promise<void> => {
+    try {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': csrfToken || '',
+        },
+        credentials: 'include',
+      });
+    } catch (err) {
+      console.warn('Logout notice:', err);
+    } finally {
+      setCurrentUser(null);
+      setCsrfToken('');
+      showNotification('Signed out from Admin CMS session.', 'info');
+    }
   };
 
   // Helpers for CRUD
@@ -1141,6 +1243,10 @@ export const CMSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateAppointmentStatus = (id: string, status: AppointmentRecord['status'], adminNotes?: string, changedBy: string = 'Clinic Staff') => {
+    if (currentUser?.role === 'editor') {
+      showNotification('Access Denied: Editor role is not authorized to modify appointments.', 'error');
+      return;
+    }
     setAppointments(prev =>
       prev.map(a => {
         if (a.id === id) {
@@ -1169,6 +1275,10 @@ export const CMSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const rescheduleAppointment = (id: string, newDate: string, newTimeSlot: string, reason?: string) => {
+    if (currentUser?.role === 'editor') {
+      showNotification('Access Denied: Editor role is not authorized to modify appointments.', 'error');
+      return;
+    }
     setAppointments(prev =>
       prev.map(a => {
         if (a.id === id) {
@@ -1199,6 +1309,10 @@ export const CMSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const cancelAppointment = (id: string, reason: string) => {
+    if (currentUser?.role === 'editor') {
+      showNotification('Access Denied: Editor role is not authorized to modify appointments.', 'error');
+      return;
+    }
     setAppointments(prev =>
       prev.map(a => {
         if (a.id === id) {
@@ -1226,6 +1340,10 @@ export const CMSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addStaffNote = (id: string, note: string, staffName: string = 'Clinic Staff') => {
+    if (currentUser?.role === 'editor') {
+      showNotification('Access Denied: Editor role is not authorized to add appointment notes.', 'error');
+      return;
+    }
     setAppointments(prev =>
       prev.map(a => {
         if (a.id === id) {
@@ -1249,6 +1367,10 @@ export const CMSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const saveIntake = (id: string, intakeData: Partial<AppointmentRecord>) => {
+    if (currentUser?.role === 'editor') {
+      showNotification('Access Denied: Editor role is not authorized to submit or update intake records.', 'error');
+      return;
+    }
     setAppointments(prev =>
       prev.map(a => {
         if (a.id === id) {
@@ -1310,9 +1432,9 @@ export const CMSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       value={{
         currentUser,
         currentRole: currentUser?.role || null,
+        isAuthLoading,
         login,
         logout,
-        switchRole,
         clinicInfo,
         updateClinicInfo,
         doctorProfile,
@@ -1349,7 +1471,8 @@ export const CMSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addBlogPost,
         factsQueue,
         updateFactStatus,
-        appointments,
+        // Prevent PHI or appointment logistics from ever reaching editor state
+        appointments: currentUser?.role === 'editor' ? [] : appointments,
         addAppointment,
         updateAppointmentStatus,
         rescheduleAppointment,

@@ -45,6 +45,20 @@ export const AppointmentsModule: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<'all' | AppointmentStatus>('all');
   const [selectedAppointment, setSelectedAppointment] = useState<AppointmentRecord | null>(null);
   
+  // Clinician Sensitive Intake Loading State
+  const [clinicalRecord, setClinicalRecord] = useState<{
+    visitReason?: string;
+    symptomDuration?: string;
+    existingConditions?: string;
+    currentMedicines?: string;
+    knownAllergies?: string;
+    intakeNotes?: string;
+    isEncrypted?: boolean;
+    submittedAt?: string;
+  } | null>(null);
+  const [isLoadingClinical, setIsLoadingClinical] = useState(false);
+  const [clinicalError, setClinicalError] = useState<string | null>(null);
+
   // Staff Note Input
   const [newStaffNote, setNewStaffNote] = useState('');
 
@@ -90,10 +104,47 @@ export const AppointmentsModule: React.FC = () => {
     return a.status === statusFilter;
   });
 
-  const handleOpenDetail = (app: AppointmentRecord) => {
+  const handleOpenDetail = async (app: AppointmentRecord) => {
     // Refresh to latest from state
     const fresh = appointments.find(a => a.id === app.id) || app;
     setSelectedAppointment(fresh);
+    setClinicalRecord(null);
+    setClinicalError(null);
+
+    // If active user is clinician, retrieve sensitive decrypted clinical record
+    if (currentUser?.role === 'clinician') {
+      setIsLoadingClinical(true);
+      try {
+        const response = await fetch(`/api/appointments/${fresh.id}/clinical`, {
+          credentials: 'include',
+          headers: {
+            'Accept': 'application/json'
+          }
+        });
+        if (response.ok) {
+          const resData = await response.json();
+          if (resData.success && resData.appointment) {
+            const a = resData.appointment;
+            setClinicalRecord({
+              visitReason: a.visit_reason || a.visitReason || a.intake?.visit_reason,
+              symptomDuration: a.symptom_duration || a.symptomDuration || a.intake?.symptom_duration,
+              existingConditions: a.existing_conditions || a.existingConditions || a.intake?.existing_conditions,
+              currentMedicines: a.current_medicines || a.currentMedicines || a.intake?.current_medicines,
+              knownAllergies: a.known_allergies || a.knownAllergies || a.intake?.known_allergies,
+              intakeNotes: a.intake_notes || a.intakeNotes || a.intake?.intake_notes,
+              isEncrypted: a.intake?.is_encrypted ?? true,
+              submittedAt: a.intake_submitted_at || a.intake?.created_at,
+            });
+          }
+        } else if (response.status === 403) {
+          setClinicalError('Access Denied: Clinician role required.');
+        }
+      } catch (err) {
+        console.error('Error loading clinical intake:', err);
+      } finally {
+        setIsLoadingClinical(false);
+      }
+    }
   };
 
   const handleAddNote = (e: React.FormEvent) => {
@@ -734,8 +785,13 @@ export const AppointmentsModule: React.FC = () => {
                 </h3>
               </div>
               <button
-                onClick={() => setSelectedAppointment(null)}
+                onClick={() => {
+                  setSelectedAppointment(null);
+                  setClinicalRecord(null);
+                  setClinicalError(null);
+                }}
                 className="text-slate-400 hover:text-slate-600 text-lg font-bold p-1"
+                aria-label="Close modal"
               >
                 ✕
               </button>
@@ -855,44 +911,102 @@ export const AppointmentsModule: React.FC = () => {
                 <div><strong>Preferred Channel:</strong> {selectedAppointment.communicationPreference}</div>
               </div>
 
-              <div className="space-y-2 pt-2 border-t border-slate-100 text-xs">
-                {selectedAppointment.visitReason && (
-                  <div>
-                    <span className="font-bold text-slate-900 block">Reported Symptoms / Reason:</span>
-                    <span className="text-slate-700">{selectedAppointment.visitReason}</span>
+              {/* Conditional Clinical Intake Rendering Based on Role */}
+              {currentUser?.role === 'clinician' ? (
+                <div className="pt-2 border-t border-slate-100 space-y-3">
+                  <div className="flex items-center justify-between bg-teal-50/70 border border-teal-200 rounded-lg p-2.5 text-xs text-teal-900">
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck className="w-4 h-4 text-teal-700 shrink-0" />
+                      <span className="font-semibold">Authorized Clinician Access — Decrypted Clinical Record</span>
+                    </div>
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-teal-700 bg-teal-100/60 px-2 py-0.5 rounded">
+                      AES-256-GCM Decrypted
+                    </span>
                   </div>
-                )}
-                {selectedAppointment.symptomDuration && (
-                  <div>
-                    <span className="font-bold text-slate-900 block">Symptom Duration:</span>
-                    <span className="text-slate-700">{selectedAppointment.symptomDuration}</span>
+
+                  {isLoadingClinical ? (
+                    <div className="text-xs text-slate-500 py-3 text-center flex items-center justify-center gap-2">
+                      <div className="w-3.5 h-3.5 border-2 border-slate-300 border-t-[#2097A2] rounded-full animate-spin"></div>
+                      <span>Retrieving & decrypting patient clinical intake...</span>
+                    </div>
+                  ) : clinicalError ? (
+                    <div className="text-xs text-rose-700 bg-rose-50 border border-rose-200 p-2.5 rounded-lg">
+                      {clinicalError}
+                    </div>
+                  ) : (
+                    <div className="space-y-2.5 text-xs">
+                      {(clinicalRecord?.visitReason || selectedAppointment.visitReason) ? (
+                        <div>
+                          <span className="font-bold text-slate-900 block">Reported Symptoms / Reason:</span>
+                          <span className="text-slate-700">{clinicalRecord?.visitReason || selectedAppointment.visitReason}</span>
+                        </div>
+                      ) : null}
+
+                      {(clinicalRecord?.symptomDuration || selectedAppointment.symptomDuration) ? (
+                        <div>
+                          <span className="font-bold text-slate-900 block">Symptom Duration:</span>
+                          <span className="text-slate-700">{clinicalRecord?.symptomDuration || selectedAppointment.symptomDuration}</span>
+                        </div>
+                      ) : null}
+
+                      {(clinicalRecord?.existingConditions || selectedAppointment.existingConditions) ? (
+                        <div>
+                          <span className="font-bold text-slate-900 block">Existing Conditions:</span>
+                          <span className="text-slate-700">{clinicalRecord?.existingConditions || selectedAppointment.existingConditions}</span>
+                        </div>
+                      ) : null}
+
+                      {(clinicalRecord?.currentMedicines || selectedAppointment.currentMedicines) ? (
+                        <div>
+                          <span className="font-bold text-slate-900 block">Current Medications & Dosages:</span>
+                          <span className="text-slate-700">{clinicalRecord?.currentMedicines || selectedAppointment.currentMedicines}</span>
+                        </div>
+                      ) : null}
+
+                      {(clinicalRecord?.knownAllergies || selectedAppointment.knownAllergies) ? (
+                        <div>
+                          <span className="font-bold text-slate-900 block">Known Allergies:</span>
+                          <span className="text-rose-700 font-medium">{clinicalRecord?.knownAllergies || selectedAppointment.knownAllergies}</span>
+                        </div>
+                      ) : null}
+
+                      {(clinicalRecord?.intakeNotes || selectedAppointment.intakeNotes) ? (
+                        <div>
+                          <span className="font-bold text-slate-900 block">Patient Pre-Visit Notes:</span>
+                          <span className="text-slate-700">{clinicalRecord?.intakeNotes || selectedAppointment.intakeNotes}</span>
+                        </div>
+                      ) : null}
+
+                      {!(clinicalRecord?.visitReason || selectedAppointment.visitReason ||
+                         clinicalRecord?.existingConditions || selectedAppointment.existingConditions ||
+                         clinicalRecord?.currentMedicines || selectedAppointment.currentMedicines ||
+                         clinicalRecord?.knownAllergies || selectedAppointment.knownAllergies ||
+                         clinicalRecord?.intakeNotes || selectedAppointment.intakeNotes) && (
+                        <div className="text-xs text-slate-500 italic py-2">
+                          No pre-visit clinical intake notes submitted by patient for this appointment.
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="pt-2 border-t border-slate-100">
+                  <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs text-slate-600 flex items-start gap-2.5">
+                    <Lock className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
+                    <div className="space-y-1">
+                      <div className="font-semibold text-slate-800 flex items-center gap-2">
+                        <span>Protected Health Information (PHI) Restricted</span>
+                        <span className="text-[10px] font-bold text-slate-500 bg-slate-200/80 px-1.5 py-0.2 rounded">
+                          Clinician Role Only
+                        </span>
+                      </div>
+                      <p className="text-[11px] leading-relaxed text-slate-500">
+                        Pre-visit patient symptoms, medical histories, medications, and allergies are encrypted at rest and accessible exclusively to licensed clinical personnel (<code className="text-slate-700 font-mono">clinician</code> role) in compliance with healthcare data privacy protocols. Operational staff may coordinate logistics and status workflow without accessing sensitive medical records.
+                      </p>
+                    </div>
                   </div>
-                )}
-                {selectedAppointment.existingConditions && (
-                  <div>
-                    <span className="font-bold text-slate-900 block">Existing Conditions:</span>
-                    <span className="text-slate-700">{selectedAppointment.existingConditions}</span>
-                  </div>
-                )}
-                {selectedAppointment.currentMedicines && (
-                  <div>
-                    <span className="font-bold text-slate-900 block">Current Medications & Dosages:</span>
-                    <span className="text-slate-700">{selectedAppointment.currentMedicines}</span>
-                  </div>
-                )}
-                {selectedAppointment.knownAllergies && (
-                  <div>
-                    <span className="font-bold text-slate-900 block">Known Allergies:</span>
-                    <span className="text-rose-700 font-medium">{selectedAppointment.knownAllergies}</span>
-                  </div>
-                )}
-                {selectedAppointment.intakeNotes && (
-                  <div>
-                    <span className="font-bold text-slate-900 block">Patient Pre-Visit Notes:</span>
-                    <span className="text-slate-700">{selectedAppointment.intakeNotes}</span>
-                  </div>
-                )}
-              </div>
+                </div>
+              )}
             </div>
 
             {/* Internal Staff Notes Section */}

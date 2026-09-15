@@ -1,6 +1,6 @@
 export type PublicationStatus = 'draft' | 'published' | 'needs_verification';
 
-export type UserRole = 'super_admin' | 'admin' | 'receptionist' | 'editor';
+export type UserRole = 'super_admin' | 'admin' | 'clinician' | 'receptionist' | 'editor';
 
 export interface CMSUser {
   id: string;

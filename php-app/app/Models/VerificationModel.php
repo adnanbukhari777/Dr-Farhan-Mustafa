@@ -22,6 +22,17 @@ class VerificationModel
         return $stmt->fetchAll();
     }
 
+    public static function getById(int $id): ?array
+    {
+        $db = Database::getConnection();
+        if (!$db || $id <= 0) return null;
+
+        $stmt = $db->prepare("SELECT * FROM facts_verification_queue WHERE id = :id LIMIT 1");
+        $stmt->execute([':id' => $id]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $row ?: null;
+    }
+
     public static function getPendingCount(): int
     {
         $db = Database::getConnection();

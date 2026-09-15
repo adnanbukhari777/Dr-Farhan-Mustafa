@@ -8,39 +8,70 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Security\Mailer;
+use App\Security\Auth;
 
 class SmtpController
 {
+    /**
+     * View SMTP Settings
+     * Allowed Roles: admin, super_admin. Receptionist & Editor denied (403).
+     */
     public function getSettings(): void
     {
-        header('Content-Type: application/json; charset=utf-8');
+        Auth::requireRole([Auth::ROLE_ADMIN, Auth::ROLE_SUPER_ADMIN]);
+
         $settings = Mailer::getSmtpSettings();
         // Mask password for security
         if (!empty($settings['password'])) {
             $settings['password'] = '••••••••';
         }
-        echo json_encode(['success' => true, 'smtp' => $settings]);
+        Auth::jsonResponse(['success' => true, 'smtp' => $settings]);
     }
 
+    /**
+     * Update SMTP Settings
+     * Allowed Roles: super_admin only. Admin, Receptionist, Editor denied (403).
+     * Requires CSRF token.
+     */
     public function saveSettings(): void
     {
-        header('Content-Type: application/json; charset=utf-8');
-        $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+        Auth::requireRole(Auth::ROLE_SUPER_ADMIN);
+        Auth::requireCsrf();
+
+        $input = Auth::requireJsonRequest();
+        $allowed = ['host', 'port', 'encryption', 'username', 'password', 'from_email', 'from_name'];
+        $filtered = array_intersect_key($input, array_flip($allowed));
         
-        $saved = Mailer::updateSmtpSettings($input);
+        $saved = Mailer::updateSmtpSettings($filtered);
         if ($saved) {
-            echo json_encode(['success' => true, 'message' => 'SMTP settings saved successfully.']);
+            Auth::recordAuditEvent('smtp_settings_updated', 'smtp', null, [
+                'smtp_host' => $filtered['host'] ?? '',
+                'smtp_port' => $filtered['port'] ?? ''
+            ]);
+            Auth::jsonResponse(['success' => true, 'message' => 'SMTP settings saved successfully.']);
         } else {
-            http_response_code(500);
-            echo json_encode(['success' => false, 'message' => 'Failed to save SMTP settings.']);
+            Auth::jsonResponse(['success' => false, 'error' => 'save_failed', 'message' => 'Failed to save SMTP settings.'], 500);
         }
     }
 
+    /**
+     * Send Test Dispatch Email
+     * Allowed Roles: super_admin only. Admin, Receptionist, Editor denied (403).
+     * Requires CSRF token.
+     */
     public function testEmail(): void
     {
-        header('Content-Type: application/json; charset=utf-8');
-        $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
-        $recipient = $input['recipient_email'] ?? $input['email'] ?? 'reception@healthpro.com.pk';
+        Auth::requireRole(Auth::ROLE_SUPER_ADMIN);
+        Auth::requireCsrf();
+
+        $input = Auth::requireJsonRequest();
+        $allowed = ['recipient_email', 'email'];
+        $filtered = array_intersect_key($input, array_flip($allowed));
+
+        $recipient = trim((string)($filtered['recipient_email'] ?? $filtered['email'] ?? 'reception@healthpro.com.pk'));
+        if (!filter_var($recipient, FILTER_VALIDATE_EMAIL)) {
+            Auth::jsonResponse(['success' => false, 'error' => 'validation_error', 'message' => 'Invalid recipient email address.'], 400);
+        }
 
         $fakeAppointment = [
             'patient_name' => 'System Test Patient',
@@ -52,6 +83,10 @@ class SmtpController
         ];
 
         $res = Mailer::sendAppointmentNotification('confirmed', $fakeAppointment);
-        echo json_encode($res);
+        Auth::recordAuditEvent('smtp_test_email_dispatched', 'smtp', null, [
+            'recipient' => $recipient,
+            'success' => $res['success'] ?? false
+        ]);
+        Auth::jsonResponse($res);
     }
 }

@@ -7,6 +7,7 @@ use PDO;
 use App\Models\AiKnowledgeModel;
 use App\Models\AiLogModel;
 use App\Services\GeminiService;
+use App\Security\Auth;
 
 class AiController
 {
@@ -91,76 +92,170 @@ class AiController
 
     /**
      * Get / Update Settings
+     * View: admin, super_admin. Receptionist & Editor denied (403).
+     * Update: super_admin only. Admin, Receptionist, Editor denied (403). Requires CSRF.
      */
     public function getSettings(): void
     {
-        header('Content-Type: application/json');
+        Auth::requireRole([Auth::ROLE_ADMIN, Auth::ROLE_SUPER_ADMIN]);
+
         $settings = $this->knowledgeModel->getSettings();
         $hasKey = !empty($_ENV['GEMINI_API_KEY'] ?? getenv('GEMINI_API_KEY'));
-        echo json_encode(['success' => true, 'settings' => $settings, 'hasApiKeyConfigured' => $hasKey]);
+        Auth::jsonResponse(['success' => true, 'settings' => $settings, 'hasApiKeyConfigured' => $hasKey]);
     }
 
     public function updateSettings(): void
     {
-        header('Content-Type: application/json');
-        $input = json_decode(file_get_contents('php://input'), true) ?? [];
-        $ok = $this->knowledgeModel->updateSettings($input);
-        echo json_encode(['success' => $ok, 'message' => 'Settings saved successfully.']);
+        Auth::requireRole(Auth::ROLE_SUPER_ADMIN);
+        Auth::requireCsrf();
+
+        $input = Auth::requireJsonRequest();
+        $allowed = [
+            'is_enabled', 'model_name', 'temperature', 'max_tokens',
+            'system_prompt', 'emergency_alert_text', 'rate_limit_per_10min',
+            'retention_days', 'consent_text', 'disclaimer_text',
+            'whatsapp_number', 'phone_number'
+        ];
+        $filtered = array_intersect_key($input, array_flip($allowed));
+
+        $ok = $this->knowledgeModel->updateSettings($filtered);
+        Auth::recordAuditEvent('ai_settings_updated', 'ai_settings', null);
+        Auth::jsonResponse(['success' => $ok, 'message' => 'Settings saved successfully.']);
     }
 
     /**
      * Knowledge Management
+     * Allowed: editor, admin, super_admin. Receptionist denied (403).
+     * Mutations require CSRF token.
      */
     public function getKnowledge(): void
     {
-        header('Content-Type: application/json');
+        Auth::requireRole([Auth::ROLE_EDITOR, Auth::ROLE_ADMIN, Auth::ROLE_SUPER_ADMIN]);
+
         $items = $this->knowledgeModel->getAll();
-        echo json_encode(['success' => true, 'items' => $items]);
+        Auth::jsonResponse(['success' => true, 'items' => $items]);
     }
 
     public function saveKnowledge(): void
     {
-        header('Content-Type: application/json');
-        $input = json_decode(file_get_contents('php://input'), true) ?? [];
-        if (!empty($input['id'])) {
-            $ok = $this->knowledgeModel->updateItem((int)$input['id'], $input);
-            echo json_encode(['success' => $ok, 'message' => 'Knowledge item updated.']);
+        $user = Auth::requireRole([Auth::ROLE_EDITOR, Auth::ROLE_ADMIN, Auth::ROLE_SUPER_ADMIN]);
+        Auth::requireCsrf();
+
+        $input = Auth::requireJsonRequest();
+        $allowed = [
+            'id', 'category', 'topic', 'question_en', 'question_urdu',
+            'question_roman', 'answer_content', 'keywords', 'keywords_json',
+            'is_published', 'is_verified', 'sort_order'
+        ];
+        $filtered = array_intersect_key($input, array_flip($allowed));
+
+        // Editors cannot modify or approve publication/verification status.
+        // Only explicitly authorized approval roles (admin, super_admin) may verify or publish.
+        $isApprovalRole = in_array($user['role'], [Auth::ROLE_ADMIN, Auth::ROLE_SUPER_ADMIN], true);
+        if (!$isApprovalRole) {
+            unset($filtered['is_published'], $filtered['is_verified']);
+            if (empty($filtered['id'])) {
+                $filtered['is_published'] = 0;
+                $filtered['is_verified'] = 0;
+            }
+        }
+
+        if (!empty($filtered['id'])) {
+            $itemId = (int)$filtered['id'];
+            $existing = $this->knowledgeModel->getById($itemId);
+            if (!$existing) {
+                Auth::jsonResponse(['success' => false, 'error' => 'not_found', 'message' => 'Knowledge item not found.'], 404);
+            }
+            $ok = $this->knowledgeModel->updateItem($itemId, $filtered);
+            Auth::recordAuditEvent('ai_knowledge_updated', 'ai_knowledge', (string)$itemId);
+
+            // Record verification and publication as separate audit events
+            if ($isApprovalRole) {
+                if (isset($filtered['is_verified']) && (int)$filtered['is_verified'] === 1 && (int)($existing['is_verified'] ?? 0) !== 1) {
+                    Auth::recordAuditEvent('ai_knowledge_verified', 'ai_knowledge', (string)$itemId, [
+                        'topic' => $existing['topic'] ?? null,
+                        'approved_by' => $user['email'] ?? $user['name'] ?? null
+                    ]);
+                }
+                if (isset($filtered['is_published']) && (int)$filtered['is_published'] === 1 && (int)($existing['is_published'] ?? 0) !== 1) {
+                    Auth::recordAuditEvent('ai_knowledge_published', 'ai_knowledge', (string)$itemId, [
+                        'topic' => $existing['topic'] ?? null,
+                        'published_by' => $user['email'] ?? $user['name'] ?? null
+                    ]);
+                }
+            }
+
+            Auth::jsonResponse(['success' => $ok, 'message' => 'Knowledge item updated.']);
         } else {
-            $newId = $this->knowledgeModel->createItem($input);
-            echo json_encode(['success' => true, 'id' => $newId, 'message' => 'Knowledge item created.']);
+            $newId = $this->knowledgeModel->createItem($filtered);
+            Auth::recordAuditEvent('ai_knowledge_created', 'ai_knowledge', (string)$newId);
+
+            if ($isApprovalRole) {
+                if (!empty($filtered['is_verified'])) {
+                    Auth::recordAuditEvent('ai_knowledge_verified', 'ai_knowledge', (string)$newId);
+                }
+                if (!empty($filtered['is_published'])) {
+                    Auth::recordAuditEvent('ai_knowledge_published', 'ai_knowledge', (string)$newId);
+                }
+            }
+
+            Auth::jsonResponse(['success' => true, 'id' => $newId, 'message' => 'Knowledge item created.']);
         }
     }
 
     public function deleteKnowledge(int $id): void
     {
-        header('Content-Type: application/json');
+        Auth::requireRole([Auth::ROLE_EDITOR, Auth::ROLE_ADMIN, Auth::ROLE_SUPER_ADMIN]);
+        Auth::requireCsrf();
+
+        if ($id <= 0) {
+            Auth::jsonResponse(['success' => false, 'error' => 'validation_error', 'message' => 'Invalid knowledge item ID.'], 400);
+        }
+
+        $existing = $this->knowledgeModel->getById($id);
+        if (!$existing) {
+            Auth::jsonResponse(['success' => false, 'error' => 'not_found', 'message' => 'Knowledge item not found.'], 404);
+        }
+
         $ok = $this->knowledgeModel->deleteItem($id);
-        echo json_encode(['success' => $ok, 'message' => 'Knowledge item deleted.']);
+        Auth::recordAuditEvent('ai_knowledge_deleted', 'ai_knowledge', (string)$id);
+        Auth::jsonResponse(['success' => $ok, 'message' => 'Knowledge item deleted.']);
     }
 
     /**
      * Conversations and Safety Logs
+     * Allowed: admin, super_admin. Receptionist & Editor denied (403).
      */
     public function getConversations(): void
     {
-        header('Content-Type: application/json');
+        Auth::requireRole([Auth::ROLE_ADMIN, Auth::ROLE_SUPER_ADMIN]);
+
         $convs = $this->logModel->getConversations();
-        echo json_encode(['success' => true, 'conversations' => $convs]);
+        Auth::jsonResponse(['success' => true, 'conversations' => $convs]);
     }
 
     public function getSafetyLogs(): void
     {
-        header('Content-Type: application/json');
+        Auth::requireRole([Auth::ROLE_ADMIN, Auth::ROLE_SUPER_ADMIN]);
+
         $logs = $this->logModel->getSafetyLogs();
-        echo json_encode(['success' => true, 'logs' => $logs]);
+        Auth::jsonResponse(['success' => true, 'logs' => $logs]);
     }
 
+    /**
+     * Purge Old Conversations / Safety Logs
+     * Allowed: super_admin only. Admin, Receptionist, Editor denied (403).
+     * Requires CSRF token.
+     */
     public function purgeLogs(): void
     {
-        header('Content-Type: application/json');
-        $input = json_decode(file_get_contents('php://input'), true) ?? [];
-        $days = (int)($input['retentionDays'] ?? 30);
+        Auth::requireRole(Auth::ROLE_SUPER_ADMIN);
+        Auth::requireCsrf();
+
+        $input = Auth::requireJsonRequest();
+        $days = max(1, min(365, (int)($input['retentionDays'] ?? 30)));
         $count = $this->logModel->purgeOldLogs($days);
-        echo json_encode(['success' => true, 'message' => "Purged {$count} sessions older than {$days} days."]);
+        Auth::recordAuditEvent('ai_logs_purged', 'ai_logs', null, ['retention_days' => $days, 'purged_count' => $count]);
+        Auth::jsonResponse(['success' => true, 'message' => "Purged {$count} sessions older than {$days} days."]);
     }
 }

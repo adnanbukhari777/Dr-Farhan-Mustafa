@@ -11,10 +11,80 @@ namespace App\Models;
 
 use App\Config\Database;
 use App\Config\Config;
+use App\Security\Crypto;
 use PDO;
 
 class AppointmentModel
 {
+    public const CANONICAL_STATUSES = [
+        Config::STATUS_NEW,
+        Config::STATUS_CONFIRMED,
+        Config::STATUS_RESCHEDULED,
+        Config::STATUS_CHECKED_IN,
+        Config::STATUS_COMPLETED,
+        Config::STATUS_CANCELLED,
+        Config::STATUS_NO_SHOW,
+    ];
+
+    public const VALID_TRANSITIONS = [
+        Config::STATUS_NEW => [
+            Config::STATUS_CONFIRMED,
+            Config::STATUS_RESCHEDULED,
+            Config::STATUS_CHECKED_IN,
+            Config::STATUS_CANCELLED,
+            Config::STATUS_NO_SHOW,
+        ],
+        Config::STATUS_CONFIRMED => [
+            Config::STATUS_CHECKED_IN,
+            Config::STATUS_RESCHEDULED,
+            Config::STATUS_CANCELLED,
+            Config::STATUS_NO_SHOW,
+            Config::STATUS_COMPLETED,
+        ],
+        Config::STATUS_RESCHEDULED => [
+            Config::STATUS_CONFIRMED,
+            Config::STATUS_CHECKED_IN,
+            Config::STATUS_RESCHEDULED,
+            Config::STATUS_CANCELLED,
+            Config::STATUS_NO_SHOW,
+            Config::STATUS_COMPLETED,
+        ],
+        Config::STATUS_CHECKED_IN => [
+            Config::STATUS_COMPLETED,
+            Config::STATUS_RESCHEDULED,
+            Config::STATUS_CANCELLED,
+            Config::STATUS_NO_SHOW,
+        ],
+        Config::STATUS_COMPLETED => [
+            Config::STATUS_RESCHEDULED,
+            Config::STATUS_CANCELLED,
+            Config::STATUS_NO_SHOW,
+        ],
+        Config::STATUS_CANCELLED => [
+            Config::STATUS_RESCHEDULED,
+            Config::STATUS_NO_SHOW,
+        ],
+        Config::STATUS_NO_SHOW => [
+            Config::STATUS_RESCHEDULED,
+            Config::STATUS_CANCELLED,
+        ],
+    ];
+
+    /**
+     * Validate whether a status transition is permitted under the 7-state lifecycle
+     */
+    public static function isValidStatusTransition(string $currentStatus, string $newStatus): bool
+    {
+        if (!in_array($newStatus, self::CANONICAL_STATUSES, true)) {
+            return false;
+        }
+        if ($currentStatus === $newStatus) {
+            return true;
+        }
+        $allowed = self::VALID_TRANSITIONS[$currentStatus] ?? [];
+        return in_array($newStatus, $allowed, true);
+    }
+
     /**
      * Create a new appointment booking with transaction-safe double booking check
      */
@@ -49,13 +119,21 @@ class AppointmentModel
             }
 
             // 2. Check for Blocked Slot
+            $slotParts = explode('-', $slot);
+            $slotStart = trim($slotParts[0]);
+            $slotStartTime = date('H:i:s', strtotime($slotStart) ?: strtotime($slot));
+
             $blockStmt = $db->prepare("
                 SELECT reason FROM blocked_slots 
                 WHERE block_date = :bdate 
-                AND :slot >= start_time AND :slot < end_time 
+                AND :slot_start >= start_time AND :slot_end < end_time 
                 LIMIT 1
             ");
-            $blockStmt->execute([':bdate' => $date, ':slot' => $slot]);
+            $blockStmt->execute([
+                ':bdate' => $date, 
+                ':slot_start' => $slotStartTime,
+                ':slot_end' => $slotStartTime
+            ]);
             $blocked = $blockStmt->fetch();
             if ($blocked) {
                 $db->rollBack();
@@ -135,26 +213,33 @@ class AppointmentModel
             ");
             $histStmt->execute([':app_id' => $appointmentId]);
 
-            // 7. Insert Intake Record if provided during booking
-            if (!empty($data['visit_reason']) || !empty($data['current_medicines'])) {
+            // 7. Insert Intake Record if provided during booking (Encrypted at Rest with AES-256-GCM)
+            $visitReason = $data['visit_reason'] ?? ($data['intake_visit_reason'] ?? null);
+            $duration = $data['symptom_duration'] ?? ($data['intake_symptom_duration'] ?? null);
+            $conditions = $data['existing_conditions'] ?? ($data['intake_existing_conditions'] ?? null);
+            $meds = $data['current_medicines'] ?? ($data['intake_current_medicines'] ?? null);
+            $allergies = $data['known_allergies'] ?? ($data['intake_known_allergies'] ?? null);
+            $gNotes = $data['general_notes'] ?? ($data['intake_general_notes'] ?? ($data['intake_notes'] ?? null));
+
+            if ($visitReason || $meds || $conditions || $allergies || $duration || $gNotes) {
                 $intakeStmt = $db->prepare("
                     INSERT INTO patient_intakes (
                         appointment_id, visit_reason, symptom_duration, 
-                        existing_conditions, current_medicines, known_allergies, general_notes
+                        existing_conditions, current_medicines, known_allergies, general_notes, is_encrypted
                     ) VALUES (
                         :app_id, :v_reason, :duration, 
-                        :conditions, :meds, :allergies, :g_notes
+                        :conditions, :meds, :allergies, :g_notes, 1
                     )
                 ");
 
                 $intakeStmt->execute([
                     ':app_id' => $appointmentId,
-                    ':v_reason' => $data['visit_reason'] ?? ($data['reason_category'] ?? 'General Consultation'),
-                    ':duration' => $data['symptom_duration'] ?? null,
-                    ':conditions' => $data['existing_conditions'] ?? null,
-                    ':meds' => $data['current_medicines'] ?? null,
-                    ':allergies' => $data['known_allergies'] ?? null,
-                    ':g_notes' => $data['general_notes'] ?? null,
+                    ':v_reason' => Crypto::encrypt($visitReason ?? ($data['reason_category'] ?? 'General Consultation')),
+                    ':duration' => Crypto::encrypt($duration),
+                    ':conditions' => Crypto::encrypt($conditions),
+                    ':meds' => Crypto::encrypt($meds),
+                    ':allergies' => Crypto::encrypt($allergies),
+                    ':g_notes' => Crypto::encrypt($gNotes),
                 ]);
             }
 
@@ -186,7 +271,10 @@ class AppointmentModel
 
         $sql = "SELECT a.*, 
                        pi.visit_reason, pi.symptom_duration, pi.existing_conditions, 
-                       pi.current_medicines, pi.known_allergies, pi.general_notes as intake_notes
+                       pi.current_medicines, pi.known_allergies, pi.general_notes as intake_notes,
+                       pi.is_encrypted as intake_is_encrypted,
+                       (CASE WHEN pi.id IS NOT NULL THEN 1 ELSE 0 END) as has_intake,
+                       pi.created_at as intake_submitted_at
                 FROM appointments a
                 LEFT JOIN patient_intakes pi ON a.id = pi.appointment_id";
 
@@ -202,8 +290,14 @@ class AppointmentModel
         $stmt->execute($params);
         $appointments = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        // Attach history and notes for each appointment
+        // Attach history, staff notes, and transparently decrypt clinical fields
         foreach ($appointments as &$app) {
+            $app['visit_reason'] = Crypto::decrypt($app['visit_reason'] ?? null);
+            $app['symptom_duration'] = Crypto::decrypt($app['symptom_duration'] ?? null);
+            $app['existing_conditions'] = Crypto::decrypt($app['existing_conditions'] ?? null);
+            $app['current_medicines'] = Crypto::decrypt($app['current_medicines'] ?? null);
+            $app['known_allergies'] = Crypto::decrypt($app['known_allergies'] ?? null);
+            $app['intake_notes'] = Crypto::decrypt($app['intake_notes'] ?? null);
             $app['history'] = self::getHistory((int)$app['id']);
             $app['staff_notes'] = self::getStaffNotes((int)$app['id']);
         }
@@ -222,7 +316,10 @@ class AppointmentModel
         $stmt = $db->prepare("
             SELECT a.*, 
                    pi.visit_reason, pi.symptom_duration, pi.existing_conditions, 
-                   pi.current_medicines, pi.known_allergies, pi.general_notes as intake_notes
+                   pi.current_medicines, pi.known_allergies, pi.general_notes as intake_notes,
+                   pi.is_encrypted as intake_is_encrypted,
+                   (CASE WHEN pi.id IS NOT NULL THEN 1 ELSE 0 END) as has_intake,
+                   pi.created_at as intake_submitted_at
             FROM appointments a
             LEFT JOIN patient_intakes pi ON a.id = pi.appointment_id
             WHERE a.id = :id
@@ -232,6 +329,12 @@ class AppointmentModel
         $app = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$app) return null;
 
+        $app['visit_reason'] = Crypto::decrypt($app['visit_reason'] ?? null);
+        $app['symptom_duration'] = Crypto::decrypt($app['symptom_duration'] ?? null);
+        $app['existing_conditions'] = Crypto::decrypt($app['existing_conditions'] ?? null);
+        $app['current_medicines'] = Crypto::decrypt($app['current_medicines'] ?? null);
+        $app['known_allergies'] = Crypto::decrypt($app['known_allergies'] ?? null);
+        $app['intake_notes'] = Crypto::decrypt($app['intake_notes'] ?? null);
         $app['history'] = self::getHistory($id);
         $app['staff_notes'] = self::getStaffNotes($id);
         return $app;
@@ -251,7 +354,10 @@ class AppointmentModel
         $stmt = $db->prepare("
             SELECT a.*, 
                    pi.visit_reason, pi.symptom_duration, pi.existing_conditions, 
-                   pi.current_medicines, pi.known_allergies, pi.general_notes as intake_notes
+                   pi.current_medicines, pi.known_allergies, pi.general_notes as intake_notes,
+                   pi.is_encrypted as intake_is_encrypted,
+                   (CASE WHEN pi.id IS NOT NULL THEN 1 ELSE 0 END) as has_intake,
+                   pi.created_at as intake_submitted_at
             FROM appointments a
             LEFT JOIN patient_intakes pi ON a.id = pi.appointment_id
             WHERE UPPER(a.reference_code) = :ref
@@ -268,12 +374,18 @@ class AppointmentModel
             return null;
         }
 
+        $app['visit_reason'] = Crypto::decrypt($app['visit_reason'] ?? null);
+        $app['symptom_duration'] = Crypto::decrypt($app['symptom_duration'] ?? null);
+        $app['existing_conditions'] = Crypto::decrypt($app['existing_conditions'] ?? null);
+        $app['current_medicines'] = Crypto::decrypt($app['current_medicines'] ?? null);
+        $app['known_allergies'] = Crypto::decrypt($app['known_allergies'] ?? null);
+        $app['intake_notes'] = Crypto::decrypt($app['intake_notes'] ?? null);
         $app['history'] = self::getHistory((int)$app['id']);
         return $app;
     }
 
     /**
-     * Update appointment status with audit history tracking
+     * Update appointment status with audit history tracking and 7-state validation
      */
     public static function updateStatus(int $id, string $newStatus, ?string $notes = null, string $changedBy = 'Staff'): bool
     {
@@ -284,6 +396,11 @@ class AppointmentModel
         if (!$current) return false;
 
         $prevStatus = $current['status'];
+
+        if (!self::isValidStatusTransition($prevStatus, $newStatus)) {
+            error_log("Invalid appointment status transition from {$prevStatus} to {$newStatus} for ID {$id}");
+            return false;
+        }
 
         try {
             $db->beginTransaction();
@@ -376,6 +493,8 @@ class AppointmentModel
                 UPDATE appointments SET 
                     preferred_date = :new_date,
                     preferred_time_slot = :new_slot,
+                    rescheduled_date = :resch_date,
+                    rescheduled_time_slot = :resch_slot,
                     status = 'rescheduled',
                     admin_notes = CONCAT(COALESCE(admin_notes, ''), '\n[Rescheduled]: ', :reason),
                     updated_at = NOW()
@@ -384,6 +503,8 @@ class AppointmentModel
             $stmt->execute([
                 ':new_date' => $newDate,
                 ':new_slot' => $newSlot,
+                ':resch_date' => $newDate,
+                ':resch_slot' => $newSlot,
                 ':reason' => $reason,
                 ':id' => $id
             ]);
@@ -404,7 +525,7 @@ class AppointmentModel
             ]);
 
             $db->commit();
-            return ['success' => true, 'message' => "Appointment successfully rescheduled to {$newDate} at {$newSlot}."];
+            return ['success' => true, 'status' => 'rescheduled', 'message' => "Appointment successfully rescheduled to {$newDate} at {$newSlot}."];
         } catch (\Exception $e) {
             $db->rollBack();
             return ['success' => false, 'message' => $e->getMessage()];
@@ -453,7 +574,7 @@ class AppointmentModel
             ]);
 
             $db->commit();
-            return ['success' => true, 'message' => 'Appointment request has been cancelled.'];
+            return ['success' => true, 'status' => 'cancelled', 'message' => 'Appointment request has been cancelled.'];
         } catch (\Exception $e) {
             $db->rollBack();
             return ['success' => false, 'message' => $e->getMessage()];
@@ -482,7 +603,33 @@ class AppointmentModel
     }
 
     /**
-     * Save / update pre-visit clinical intake data
+     * Get patient clinical intake record for an appointment
+     * Decrypts AES-256-GCM encrypted fields when $decrypt is true.
+     */
+    public static function getIntake(int $appointmentId, bool $decrypt = true): ?array
+    {
+        $db = Database::getConnection();
+        if (!$db || $appointmentId <= 0) return null;
+
+        $stmt = $db->prepare("SELECT * FROM patient_intakes WHERE appointment_id = :app_id LIMIT 1");
+        $stmt->execute([':app_id' => $appointmentId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$row) return null;
+
+        if ($decrypt) {
+            $row['visit_reason'] = Crypto::decrypt($row['visit_reason']);
+            $row['symptom_duration'] = Crypto::decrypt($row['symptom_duration']);
+            $row['existing_conditions'] = Crypto::decrypt($row['existing_conditions']);
+            $row['current_medicines'] = Crypto::decrypt($row['current_medicines']);
+            $row['known_allergies'] = Crypto::decrypt($row['known_allergies']);
+            $row['general_notes'] = Crypto::decrypt($row['general_notes']);
+        }
+
+        return $row;
+    }
+
+    /**
+     * Save / update pre-visit clinical intake data with AES-256-GCM encryption at rest
      */
     public static function saveIntake(int $appointmentId, array $intakeData): bool
     {
@@ -493,6 +640,13 @@ class AppointmentModel
         $checkStmt->execute([':app_id' => $appointmentId]);
         $existingId = $checkStmt->fetchColumn();
 
+        $vReason = Crypto::encrypt($intakeData['visit_reason'] ?? 'Routine consultation');
+        $duration = Crypto::encrypt($intakeData['symptom_duration'] ?? null);
+        $conditions = Crypto::encrypt($intakeData['existing_conditions'] ?? null);
+        $meds = Crypto::encrypt($intakeData['current_medicines'] ?? null);
+        $allergies = Crypto::encrypt($intakeData['known_allergies'] ?? null);
+        $gNotes = Crypto::encrypt($intakeData['general_notes'] ?? ($intakeData['intake_notes'] ?? null));
+
         if ($existingId) {
             $stmt = $db->prepare("
                 UPDATE patient_intakes SET
@@ -501,30 +655,71 @@ class AppointmentModel
                     existing_conditions = :conditions,
                     current_medicines = :meds,
                     known_allergies = :allergies,
-                    general_notes = :g_notes
+                    general_notes = :g_notes,
+                    is_encrypted = 1
                 WHERE appointment_id = :app_id
             ");
         } else {
             $stmt = $db->prepare("
                 INSERT INTO patient_intakes (
                     appointment_id, visit_reason, symptom_duration, 
-                    existing_conditions, current_medicines, known_allergies, general_notes
+                    existing_conditions, current_medicines, known_allergies, general_notes, is_encrypted
                 ) VALUES (
                     :app_id, :v_reason, :duration, 
-                    :conditions, :meds, :allergies, :g_notes
+                    :conditions, :meds, :allergies, :g_notes, 1
                 )
             ");
         }
 
         return $stmt->execute([
             ':app_id' => $appointmentId,
-            ':v_reason' => $intakeData['visit_reason'] ?? 'Routine consultation',
-            ':duration' => $intakeData['symptom_duration'] ?? null,
-            ':conditions' => $intakeData['existing_conditions'] ?? null,
-            ':meds' => $intakeData['current_medicines'] ?? null,
-            ':allergies' => $intakeData['known_allergies'] ?? null,
-            ':g_notes' => $intakeData['general_notes'] ?? null,
+            ':v_reason' => $vReason,
+            ':duration' => $duration,
+            ':conditions' => $conditions,
+            ':meds' => $meds,
+            ':allergies' => $allergies,
+            ':g_notes' => $gNotes,
         ]);
+    }
+
+    /**
+     * One-time migration helper to encrypt all legacy unencrypted patient intakes
+     */
+    public static function encryptExistingPlaintextIntakes(): int
+    {
+        $db = Database::getConnection();
+        if (!$db) return 0;
+
+        $stmt = $db->query("SELECT id, visit_reason, symptom_duration, existing_conditions, current_medicines, known_allergies, general_notes FROM patient_intakes WHERE is_encrypted = 0 OR is_encrypted IS NULL");
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $count = 0;
+
+        $upStmt = $db->prepare("
+            UPDATE patient_intakes SET
+                visit_reason = :v_reason,
+                symptom_duration = :duration,
+                existing_conditions = :conditions,
+                current_medicines = :meds,
+                known_allergies = :allergies,
+                general_notes = :g_notes,
+                is_encrypted = 1
+            WHERE id = :id
+        ");
+
+        foreach ($rows as $row) {
+            $upStmt->execute([
+                ':id' => $row['id'],
+                ':v_reason' => Crypto::encrypt($row['visit_reason']),
+                ':duration' => Crypto::encrypt($row['symptom_duration']),
+                ':conditions' => Crypto::encrypt($row['existing_conditions']),
+                ':meds' => Crypto::encrypt($row['current_medicines']),
+                ':allergies' => Crypto::encrypt($row['known_allergies']),
+                ':g_notes' => Crypto::encrypt($row['general_notes']),
+            ]);
+            $count++;
+        }
+
+        return $count;
     }
 
     /**
@@ -559,6 +754,53 @@ class AppointmentModel
         ");
         $stmt->execute([':app_id' => $appointmentId]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Mark clinical intake as reviewed by treating clinician
+     */
+    public static function markIntakeReviewed(int $appointmentId, string $clinicianName, int $clinicianId): bool
+    {
+        $db = Database::getConnection();
+        if (!$db) return false;
+
+        try {
+            $db->beginTransaction();
+
+            $stmt = $db->prepare("
+                UPDATE patient_intakes SET
+                    reviewed_at = NOW(),
+                    reviewed_by = :clinician_name
+                WHERE appointment_id = :app_id
+            ");
+            $stmt->execute([
+                ':clinician_name' => $clinicianName,
+                ':app_id' => $appointmentId
+            ]);
+
+            // Add history entry for audit trail
+            $histStmt = $db->prepare("
+                INSERT INTO appointment_history (
+                    appointment_id, previous_status, new_status, action_type, notes, changed_by
+                ) VALUES (
+                    :app_id, NULL, 'reviewed', 'note_added', :notes, :changed_by
+                )
+            ");
+            $histStmt->execute([
+                ':app_id' => $appointmentId,
+                ':notes' => "Pre-visit clinical intake reviewed by {$clinicianName}.",
+                ':changed_by' => $clinicianName
+            ]);
+
+            $db->commit();
+            return true;
+        } catch (\Throwable $e) {
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+            error_log("Error marking intake reviewed: " . $e->getMessage());
+            return false;
+        }
     }
 }
 

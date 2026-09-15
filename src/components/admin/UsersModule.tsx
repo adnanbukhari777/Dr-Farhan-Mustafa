@@ -4,7 +4,7 @@ import { CMSUser, UserRole } from '../../types';
 import { Users, UserPlus, Shield, KeyRound, Check, RefreshCw } from 'lucide-react';
 
 export const UsersModule: React.FC = () => {
-  const { users, addUser, updateUser, currentUser, switchRole } = useCMS();
+  const { users, addUser, updateUser, currentUser } = useCMS();
   const [isAdding, setIsAdding] = useState(false);
   const [newUser, setNewUser] = useState<Partial<CMSUser>>({
     name: '',
@@ -62,29 +62,6 @@ export const UsersModule: React.FC = () => {
           >
             <UserPlus className="w-4 h-4" /> Add Staff User
           </button>
-        </div>
-
-        {/* Live Role Switcher bar */}
-        <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-          <div className="text-xs font-bold uppercase tracking-wider text-slate-700 mb-2 flex items-center gap-1.5">
-            <RefreshCw className="w-3.5 h-3.5 text-[#2097A2]" />
-            Test Live Role Access in Preview:
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {(['super_admin', 'admin', 'receptionist', 'editor'] as const).map((r) => (
-              <button
-                key={r}
-                onClick={() => switchRole(r)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition capitalize border ${
-                  currentUser?.role === r
-                    ? 'bg-[#2097A2] text-white border-[#2097A2] shadow-sm'
-                    : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
-                }`}
-              >
-                {r === 'super_admin' ? '👑 Super Admin' : r === 'admin' ? '🛡️ Admin' : r === 'receptionist' ? '📞 Receptionist' : '✍️ Content Editor'}
-              </button>
-            ))}
-          </div>
         </div>
       </div>
 
@@ -168,8 +145,7 @@ export const UsersModule: React.FC = () => {
               <th className="p-3">Role</th>
               <th className="p-3">Status</th>
               <th className="p-3">Contact</th>
-              <th className="p-3">Last Active</th>
-              <th className="p-3 text-right">Actions</th>
+              <th className="p-3 text-right">Last Active</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -184,15 +160,7 @@ export const UsersModule: React.FC = () => {
                   </span>
                 </td>
                 <td className="p-3 text-slate-600">{u.phone || '—'}</td>
-                <td className="p-3 text-slate-400">{u.lastLogin || 'Recent'}</td>
-                <td className="p-3 text-right">
-                  <button
-                    onClick={() => switchRole(u.role)}
-                    className="px-2.5 py-1 rounded bg-slate-100 hover:bg-[#2097A2] hover:text-white text-slate-700 font-semibold transition"
-                  >
-                    Simulate Login
-                  </button>
-                </td>
+                <td className="p-3 text-right text-slate-400 font-mono">{u.lastLogin || 'Recent'}</td>
               </tr>
             ))}
           </tbody>

@@ -1,7 +1,7 @@
 <?php
 /**
- * CSRF Protection Engine
- * Generates and validates cryptographically secure tokens.
+ * Dr. Farhan Mustafa Clinic Portal - CSRF Protection Engine
+ * Generates, rotates, and validates cryptographically secure tokens.
  */
 
 declare(strict_types=1);
@@ -15,17 +15,11 @@ class Csrf
     private const TOKEN_EXPIRY = 7200; // 2 hours
 
     /**
-     * Start session safely if not already active
+     * Start secure session uniformly via Auth::initSession()
      */
     private static function initSession(): void
     {
-        if (session_status() === PHP_SESSION_NONE) {
-            session_start([
-                'cookie_httponly' => true,
-                'cookie_samesite' => 'Lax',
-                'use_strict_mode' => true,
-            ]);
-        }
+        Auth::initSession();
     }
 
     /**
@@ -38,31 +32,54 @@ class Csrf
         if (
             empty($_SESSION[self::TOKEN_KEY]) ||
             empty($_SESSION[self::TOKEN_TIME_KEY]) ||
-            (time() - $_SESSION[self::TOKEN_TIME_KEY]) > self::TOKEN_EXPIRY
+            (time() - (int)$_SESSION[self::TOKEN_TIME_KEY]) > self::TOKEN_EXPIRY
         ) {
             $_SESSION[self::TOKEN_KEY] = bin2hex(random_bytes(32));
             $_SESSION[self::TOKEN_TIME_KEY] = time();
         }
 
-        return $_SESSION[self::TOKEN_KEY];
+        return (string)$_SESSION[self::TOKEN_KEY];
     }
 
     /**
-     * Validate an incoming CSRF token
+     * Validate an incoming CSRF token (from argument, X-CSRF-Token header, or POST)
      */
-    public static function validateToken(?string $token): bool
+    public static function validateToken(?string $token = null): bool
     {
         self::initSession();
+
+        if (empty($token)) {
+            $token = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? $_POST['csrf_token'] ?? null;
+            if (empty($token)) {
+                $raw = file_get_contents('php://input');
+                if (!empty($raw)) {
+                    $json = json_decode($raw, true);
+                    if (is_array($json) && !empty($json['csrf_token'])) {
+                        $token = (string)$json['csrf_token'];
+                    }
+                }
+            }
+        }
 
         if (empty($token) || empty($_SESSION[self::TOKEN_KEY])) {
             return false;
         }
 
-        if ((time() - ($_SESSION[self::TOKEN_TIME_KEY] ?? 0)) > self::TOKEN_EXPIRY) {
+        if ((time() - (int)($_SESSION[self::TOKEN_TIME_KEY] ?? 0)) > self::TOKEN_EXPIRY) {
             return false;
         }
 
-        return hash_equals($_SESSION[self::TOKEN_KEY], $token);
+        return hash_equals((string)$_SESSION[self::TOKEN_KEY], (string)$token);
+    }
+
+    /**
+     * Invalidate current session-bound CSRF token during logout
+     */
+    public static function invalidateToken(): void
+    {
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            unset($_SESSION[self::TOKEN_KEY], $_SESSION[self::TOKEN_TIME_KEY]);
+        }
     }
 
     /**

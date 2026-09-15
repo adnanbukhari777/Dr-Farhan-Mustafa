@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useCMS } from '../../context/CMSContext';
+import { AdminLogin } from './AdminLogin';
 import { FactsVerificationModule } from './FactsVerificationModule';
 import { ServicesModule } from './ServicesModule';
 import { DoctorProfileModule } from './DoctorProfileModule';
@@ -29,7 +30,8 @@ import {
   CheckCircle,
   Menu,
   X,
-  AlertTriangle
+  AlertTriangle,
+  Loader2,
 } from 'lucide-react';
 
 interface AdminPortalProps {
@@ -37,9 +39,34 @@ interface AdminPortalProps {
 }
 
 export const AdminPortal: React.FC<AdminPortalProps> = ({ onBackToPublicSite }) => {
-  const { currentUser, currentRole, logout, switchRole, factsQueue, appointments, notification, clearNotification } = useCMS();
+  const {
+    currentUser,
+    currentRole,
+    isAuthLoading,
+    logout,
+    factsQueue,
+    appointments,
+    notification,
+    clearNotification,
+  } = useCMS();
   const [activeTab, setActiveTab] = useState<string>('facts');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  // If session is still verifying with server, render loading state
+  if (isAuthLoading) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center font-['Montserrat',sans-serif] text-slate-200">
+        <Loader2 className="w-10 h-10 text-[#2097A2] animate-spin mb-4" />
+        <div className="text-sm font-semibold">Verifying Secure CMS Session...</div>
+        <div className="text-xs text-slate-400 mt-1">Connecting to Dr. Farhan Mustafa Clinic CMS</div>
+      </div>
+    );
+  }
+
+  // If not authenticated, render Canonical Admin Login Screen
+  if (!currentUser) {
+    return <AdminLogin onBackToPublicSite={onBackToPublicSite} />;
+  }
 
   const pendingFactsCount = factsQueue.filter(f => f.status === 'pending_verification' || f.status === 'needs_doctor_approval').length;
   const pendingAppointmentsCount = appointments.filter(a => a.status === 'pending').length;
@@ -48,6 +75,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ onBackToPublicSite }) 
   const isAuthorized = (tabId: string): boolean => {
     if (!currentRole) return false;
     if (currentRole === 'super_admin' || currentRole === 'admin') return true;
+
+    if (currentRole === 'clinician') {
+      return ['appointments', 'ai_knowledge'].includes(tabId);
+    }
 
     if (currentRole === 'receptionist') {
       return ['appointments', 'fees', 'content', 'facts', 'ai_conversations', 'ai_knowledge'].includes(tabId);
@@ -60,7 +91,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ onBackToPublicSite }) 
     return false;
   };
 
-  const navItems = [
+  const allNavItems = [
     { id: 'facts', label: 'Facts Verification', icon: ShieldAlert, badge: pendingFactsCount > 0 ? pendingFactsCount : undefined, badgeColor: 'bg-amber-500 text-white' },
     { id: 'appointments', label: 'Appointments & Intake', icon: CalendarCheck, badge: pendingAppointmentsCount > 0 ? pendingAppointmentsCount : undefined, badgeColor: 'bg-[#2097A2] text-white' },
     { id: 'ai_knowledge', label: 'AI Receptionist Knowledge', icon: Brain },
@@ -73,6 +104,22 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ onBackToPublicSite }) 
     { id: 'users', label: 'Staff & Roles (RBAC)', icon: Users },
     { id: 'database', label: 'MySQL Database Sync', icon: Database },
   ];
+
+  // Strictly remove appointments and unauthorized modules from editor and other restricted roles
+  const navItems = allNavItems.filter((item) => {
+    if (currentRole === 'editor' && item.id === 'appointments') {
+      return false;
+    }
+    return isAuthorized(item.id);
+  });
+
+  // Guard activeTab against direct selection of unauthorized modules
+  useEffect(() => {
+    if (!isAuthorized(activeTab)) {
+      const firstAllowed = allNavItems.find(i => isAuthorized(i.id))?.id || 'facts';
+      setActiveTab(firstAllowed);
+    }
+  }, [currentRole, activeTab]);
 
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col font-['Montserrat',sans-serif]">
@@ -131,6 +178,16 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ onBackToPublicSite }) 
             <ExternalLink className="w-3.5 h-3.5" />
             <span>Public Website</span>
           </button>
+
+          <button
+            id="admin-top-logout-btn"
+            onClick={logout}
+            title="Sign Out of Session"
+            className="px-3 py-1.5 bg-rose-500/20 hover:bg-rose-600 text-rose-300 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition border border-rose-500/30"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Sign Out</span>
+          </button>
         </div>
       </header>
 
@@ -182,30 +239,14 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ onBackToPublicSite }) 
             })}
           </div>
 
-          {/* User profile & Quick role switcher */}
-          <div className="p-4 border-t border-slate-200 bg-slate-50 space-y-3">
+          {/* User Profile */}
+          <div className="p-4 border-t border-slate-200 bg-slate-50 space-y-1">
             <div className="text-xs">
               <div className="font-bold text-slate-900 truncate">{currentUser?.name || 'Staff User'}</div>
               <div className="text-[11px] text-slate-500 font-mono truncate">{currentUser?.email}</div>
             </div>
-
-            <div className="space-y-1">
-              <div className="text-[10px] font-bold text-slate-400 uppercase">Switch Role Simulator:</div>
-              <div className="grid grid-cols-2 gap-1">
-                {(['super_admin', 'admin', 'receptionist', 'editor'] as const).map((r) => (
-                  <button
-                    key={r}
-                    onClick={() => switchRole(r)}
-                    className={`text-[10px] py-1 px-1.5 rounded font-bold transition capitalize truncate border ${
-                      currentRole === r
-                        ? 'bg-[#2097A2] text-white border-[#2097A2]'
-                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
-                    }`}
-                  >
-                    {r === 'super_admin' ? 'Super' : r === 'admin' ? 'Admin' : r === 'receptionist' ? 'Recept' : 'Editor'}
-                  </button>
-                ))}
-              </div>
+            <div className="text-[10px] text-slate-500 uppercase font-semibold">
+              Role: <span className="text-[#2097A2] font-bold">{currentRole?.replace('_', ' ')}</span>
             </div>
           </div>
         </aside>
@@ -213,7 +254,18 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ onBackToPublicSite }) 
         {/* Content Area */}
         <main className="flex-1 p-4 md:p-8 overflow-y-auto max-w-7xl">
           {activeTab === 'facts' && <FactsVerificationModule />}
-          {activeTab === 'appointments' && <AppointmentsModule />}
+          {activeTab === 'appointments' && isAuthorized('appointments') && currentRole !== 'editor' && <AppointmentsModule />}
+          {activeTab === 'appointments' && (currentRole === 'editor' || !isAuthorized('appointments')) && (
+            <div id="editor-appointment-forbidden" className="bg-white rounded-2xl p-8 border border-slate-200 text-center shadow-xs">
+              <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto mb-3">
+                <ShieldAlert className="w-6 h-6" />
+              </div>
+              <h3 className="text-base font-bold text-slate-900">403 Forbidden: Access Restricted</h3>
+              <p className="text-xs text-slate-600 mt-1 max-w-md mx-auto">
+                Your account role does not have authorization to view appointment logistics, patient records, or clinical intake.
+              </p>
+            </div>
+          )}
           {activeTab === 'ai_knowledge' && <AiKnowledgeModule />}
           {activeTab === 'ai_conversations' && <AiConversationsModule />}
           {activeTab === 'services' && <ServicesModule />}

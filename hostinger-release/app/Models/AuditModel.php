@@ -51,9 +51,33 @@ class AuditModel
         $db = Database::getConnection();
         if (!$db) return [];
 
-        $stmt = $db->prepare("SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT :limit");
+        $stmt = $db->prepare("SELECT * FROM audit_logs ORDER BY created_at DESC, id DESC LIMIT :limit");
         $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
         $stmt->execute();
         return $stmt->fetchAll();
+    }
+
+    public static function countRecentByIpAndAction(string $ip, string $action, int $seconds): int
+    {
+        $db = Database::getConnection();
+        if (!$db) return 0;
+
+        try {
+            $stmt = $db->prepare("
+                SELECT COUNT(*) as count 
+                FROM audit_logs 
+                WHERE ip_address = :ip 
+                  AND action = :action 
+                  AND created_at >= DATE_SUB(NOW(), INTERVAL :sec SECOND)
+            ");
+            $stmt->bindValue(':ip', $ip, PDO::PARAM_STR);
+            $stmt->bindValue(':action', $action, PDO::PARAM_STR);
+            $stmt->bindValue(':sec', $seconds, PDO::PARAM_INT);
+            $stmt->execute();
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            return (int)($row['count'] ?? 0);
+        } catch (\Exception $e) {
+            return 0;
+        }
     }
 }

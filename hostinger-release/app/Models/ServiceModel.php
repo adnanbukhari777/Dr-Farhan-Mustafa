@@ -49,6 +49,11 @@ class ServiceModel
         return $service ?: null;
     }
 
+    public static function getAll(): array
+    {
+        return self::getAllAdmin();
+    }
+
     public static function getAllAdmin(): array
     {
         $db = Database::getConnection();
