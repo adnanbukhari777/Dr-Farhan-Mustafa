@@ -82,7 +82,7 @@ export const ResourcesPage: React.FC<ResourcesPageProps> = ({ onNavigate }) => {
           {filtered.map((item) => (
             <div
               key={item.id}
-              className="bg-white border border-[#E2E8F0] hover:border-[#2097A2] p-6 rounded-xs transition-all space-y-4 flex flex-col justify-between group cursor-pointer shadow-2xs"
+              className="card-standard card-interactive bg-white p-6 rounded-xs space-y-4 flex flex-col justify-between group cursor-pointer shadow-2xs"
               onClick={() => setActiveRes(item)}
             >
               <div className="space-y-3">
@@ -96,7 +96,7 @@ export const ResourcesPage: React.FC<ResourcesPageProps> = ({ onNavigate }) => {
                   </span>
                 </div>
 
-                <h3 className="text-base font-semibold text-[#0A0A0A] group-hover:text-[#2097A2] transition-colors leading-snug">
+                <h3 className="text-base font-semibold text-[#0A0A0A] leading-snug">
                   {item.title}
                 </h3>
 
@@ -105,9 +105,9 @@ export const ResourcesPage: React.FC<ResourcesPageProps> = ({ onNavigate }) => {
                 </p>
               </div>
 
-              <div className="pt-4 border-t border-[#E2E8F0] flex items-center justify-between text-xs font-semibold text-[#0A0A0A] group-hover:text-[#2097A2]">
+              <div className="pt-4 border-t border-[#E2E8F0] flex items-center justify-between text-xs font-semibold text-[#0A0A0A]">
                 <span>Read guide</span>
-                <ArrowRight className="w-4 h-4 transform group-hover:translate-x-1 transition-transform" />
+                <ArrowRight className="card-icon w-4 h-4" />
               </div>
             </div>
           ))}

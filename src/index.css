@@ -150,6 +150,17 @@
     --duration-slow: 300ms;
     --duration-sweep: 600ms;
     --duration-slider: 700ms;
+
+    /* -------------------------------------------------------------
+     * 7.5. INTERACTIVE HOVER SYSTEM TOKENS (Stage 4B Global)
+     * ------------------------------------------------------------- */
+    --interactive-hover-border: var(--brand-aqua-border);
+    --interactive-hover-border-dark: var(--brand-aqua-light);
+    --interactive-hover-icon: var(--brand-aqua);
+    --interactive-hover-icon-dark: var(--brand-aqua-border);
+    --interactive-hover-shine: rgba(255, 255, 255, 0.32);
+    --interactive-hover-duration: 300ms;
+    --interactive-icon-duration: 220ms;
   }
 
   body {
@@ -190,8 +201,9 @@
 }
 
 /* -------------------------------------------------------------
- * 1. STANDARDIZED DUAL BUTTON SYSTEM (Blue Primary & Black Secondary)
- * Height: ~48px, Sharp edges (max 4px radius), Montserrat medium, glass reflection & 3D
+ * 1. STANDARDIZED DUAL BUTTON SYSTEM & SHARED HOVER ARCHITECTURE (Stage 4B)
+ * Height: ~48px, Sharp edges (max 4px radius), Montserrat medium.
+ * Stationary on pointer hover: subtle shining border & restrained shine sweep.
  * ------------------------------------------------------------- */
 
 /* PRIMARY BUTTON (Brand Blue Background) */
@@ -215,77 +227,10 @@
   box-shadow: 0 4px 14px rgba(32, 151, 162, 0.32), 0 1px 2px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.35);
   position: relative;
   overflow: hidden;
-  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
   cursor: pointer;
   text-decoration: none;
   touch-action: manipulation;
-}
-
-.btn-primary::after,
-.btn-blue::after,
-.btn-light::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 60%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
-  transform: skewX(-20deg);
-  transition: left 0.6s ease;
-  pointer-events: none;
-}
-
-.btn-primary:hover,
-.btn-blue:hover,
-.btn-light:hover {
-  transform: translateY(-4px) scale(1.025);
-  background: linear-gradient(180deg, #32D4E3 0%, #24A8B5 100%);
-  border-color: rgba(255, 255, 255, 0.7);
-  box-shadow: 0 10px 24px rgba(32, 151, 162, 0.45), 0 2px 6px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.45);
-}
-
-.btn-primary:hover::after,
-.btn-blue:hover::after,
-.btn-light:hover::after {
-  left: 140%;
-}
-
-.btn-primary:active,
-.btn-blue:active,
-.btn-light:active {
-  transform: translateY(0) scale(1);
-  box-shadow: 0 2px 6px rgba(32, 151, 162, 0.3);
-}
-
-.btn-primary:focus-visible,
-.btn-blue:focus-visible,
-.btn-light:focus-visible {
-  outline: 2px solid #27BAC8;
-  outline-offset: 2px;
-}
-
-/* -------------------------------------------------------------
- * SHARED BUTTON ICON RULE (Calendar, Phone, Bot, Arrow, WhatsApp)
- * ------------------------------------------------------------- */
-.button-icon {
-  width: var(--button-icon-size, 18px);
-  height: var(--button-icon-size, 18px);
-  flex: 0 0 var(--button-icon-size, 18px);
-  display: block;
-  flex-shrink: 0;
-  vertical-align: middle;
-}
-
-.btn-primary > svg,
-.btn-blue > svg,
-.btn-light > svg {
-  width: var(--button-icon-size, 18px);
-  height: var(--button-icon-size, 18px);
-  flex: 0 0 var(--button-icon-size, 18px);
-  display: block;
-  flex-shrink: 0;
-  vertical-align: middle;
 }
 
 /* SECONDARY BUTTON (Near-Black Background) */
@@ -308,10 +253,63 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.15);
   position: relative;
   overflow: hidden;
-  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease, border-color 0.2s ease;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
   cursor: pointer;
   text-decoration: none;
   touch-action: manipulation;
+}
+
+/* OUTLINE & INTERACTIVE BUTTONS */
+.btn-outline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 48px;
+  padding: 0.625rem 1.625rem;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--brand-charcoal);
+  background: #FFFFFF;
+  border: 1px solid var(--border-default);
+  border-radius: 3px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  position: relative;
+  overflow: hidden;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  cursor: pointer;
+  text-decoration: none;
+  touch-action: manipulation;
+}
+
+.btn-interactive,
+.ai-contextual-btn {
+  position: relative;
+  overflow: hidden;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Standard button icon sizing and alignment */
+.button-icon {
+  width: var(--button-icon-size, 18px);
+  height: var(--button-icon-size, 18px);
+  flex: 0 0 var(--button-icon-size, 18px);
+  display: block;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+
+.btn-primary > svg,
+.btn-blue > svg,
+.btn-light > svg {
+  width: var(--button-icon-size, 18px);
+  height: var(--button-icon-size, 18px);
+  flex: 0 0 var(--button-icon-size, 18px);
+  display: block;
+  flex-shrink: 0;
+  vertical-align: middle;
 }
 
 .btn-secondary > svg,
@@ -323,54 +321,178 @@
   display: block;
   flex-shrink: 0;
   stroke-width: 2px;
-  transition: color 0.2s ease, transform 0.2s ease;
+  transition: color var(--interactive-icon-duration) ease;
 }
 
-.btn-secondary:hover > svg,
-.btn-dark:hover > svg {
-  color: #56C4CF;
-}
-
+/* Gentle shine sweep pseudo-element */
+.btn-primary::after,
+.btn-blue::after,
+.btn-light::after,
 .btn-secondary::after,
-.btn-dark::after {
+.btn-dark::after,
+.btn-outline::after,
+.btn-interactive::after,
+.ai-contextual-btn::after {
   content: '';
   position: absolute;
   top: 0;
-  left: -100%;
-  width: 60%;
+  left: 0;
+  width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-  transform: skewX(-20deg);
-  transition: left 0.6s ease;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--interactive-hover-shine) 50%,
+    transparent 100%
+  );
+  transform: translateX(-120%) skewX(-20deg);
+  opacity: 0;
   pointer-events: none;
+  z-index: 2;
 }
 
-.btn-secondary:hover,
-.btn-dark:hover {
-  transform: translateY(-4px) scale(1.025);
-  border-color: rgba(39, 186, 200, 0.7);
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45), 0 0 18px rgba(39, 186, 200, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+/* Keyframe for button shine sweep animation */
+@keyframes interactive-shine-sweep {
+  0% {
+    transform: translateX(-120%) skewX(-20deg);
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.9;
+  }
+  80% {
+    opacity: 0.9;
+  }
+  100% {
+    transform: translateX(120%) skewX(-20deg);
+    opacity: 0;
+  }
 }
 
-.btn-secondary:hover::after,
-.btn-dark:hover::after {
-  left: 140%;
+/* Global button hover behavior: stationary, thin softly illuminated border & shine sweep */
+@media (hover: hover) {
+  .btn-primary:not(:disabled):not([aria-disabled="true"]):not(.btn-destructive):not(.btn-danger):hover,
+  .btn-blue:not(:disabled):not([aria-disabled="true"]):not(.btn-destructive):not(.btn-danger):hover,
+  .btn-light:not(:disabled):not([aria-disabled="true"]):not(.btn-destructive):not(.btn-danger):hover,
+  .btn-secondary:not(:disabled):not([aria-disabled="true"]):not(.btn-destructive):not(.btn-danger):hover,
+  .btn-dark:not(:disabled):not([aria-disabled="true"]):not(.btn-destructive):not(.btn-danger):hover,
+  .btn-outline:not(:disabled):not([aria-disabled="true"]):not(.btn-destructive):not(.btn-danger):hover,
+  .btn-interactive:not(:disabled):not([aria-disabled="true"]):not(.btn-destructive):not(.btn-danger):hover,
+  .ai-contextual-btn:not(:disabled):not([aria-disabled="true"]):hover {
+    border-color: var(--interactive-hover-border) !important;
+    box-shadow: 0 0 0 1px var(--interactive-hover-border) !important;
+    transform: none !important;
+  }
+
+  .btn-primary:not(:disabled):not([aria-disabled="true"]):not(.btn-destructive):not(.btn-danger):hover::after,
+  .btn-blue:not(:disabled):not([aria-disabled="true"]):not(.btn-destructive):not(.btn-danger):hover::after,
+  .btn-light:not(:disabled):not([aria-disabled="true"]):not(.btn-destructive):not(.btn-danger):hover::after,
+  .btn-secondary:not(:disabled):not([aria-disabled="true"]):not(.btn-destructive):not(.btn-danger):hover::after,
+  .btn-dark:not(:disabled):not([aria-disabled="true"]):not(.btn-destructive):not(.btn-danger):hover::after,
+  .btn-outline:not(:disabled):not([aria-disabled="true"]):not(.btn-destructive):not(.btn-danger):hover::after,
+  .btn-interactive:not(:disabled):not([aria-disabled="true"]):not(.btn-destructive):not(.btn-danger):hover::after,
+  .ai-contextual-btn:not(:disabled):not([aria-disabled="true"]):hover::after {
+    animation: interactive-shine-sweep var(--interactive-hover-duration) ease-out forwards;
+  }
+
+  .btn-secondary:not(:disabled):not([aria-disabled="true"]):hover > svg,
+  .btn-dark:not(:disabled):not([aria-disabled="true"]):hover > svg {
+    color: var(--interactive-hover-icon);
+  }
 }
 
+/* Keep buttons stationary on click/active */
+.btn-primary:active,
+.btn-blue:active,
+.btn-light:active,
 .btn-secondary:active,
-.btn-dark:active {
-  transform: translateY(0) scale(1);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+.btn-dark:active,
+.btn-outline:active,
+.btn-interactive:active,
+.ai-contextual-btn:active {
+  transform: none !important;
 }
 
+/* Keyboard focus-visible */
+.btn-primary:focus-visible,
+.btn-blue:focus-visible,
+.btn-light:focus-visible,
 .btn-secondary:focus-visible,
-.btn-dark:focus-visible {
-  outline: 2px solid #27BAC8;
+.btn-dark:focus-visible,
+.btn-outline:focus-visible,
+.btn-interactive:focus-visible,
+.ai-contextual-btn:focus-visible,
+.ai-receptionist-launcher:focus-visible {
+  outline: 2px solid var(--interactive-hover-border);
   outline-offset: 2px;
 }
 
 /* -------------------------------------------------------------
- * 2. STANDARDIZED 3D CARD SYSTEM
+ * 1.5. COMPACT AI RECEPTIONIST FLOATING LAUNCHER (Stage 4C)
+ * 56px x 56px circular button fixed at bottom-right.
+ * Isolated from global full-width, large-padding, or block button rules.
+ * Subtle illuminated border hover only (no moving shine sweep).
+ * ------------------------------------------------------------- */
+.ai-receptionist-launcher {
+  width: 56px !important;
+  min-width: 56px !important;
+  max-width: 56px !important;
+  height: 56px !important;
+  min-height: 56px !important;
+  max-height: 56px !important;
+  padding: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: 9999px !important;
+  background: #090B0D !important;
+  border: 1px solid rgba(39, 186, 200, 0.35) !important;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4), 0 0 10px rgba(39, 186, 200, 0.18) !important;
+  cursor: pointer !important;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
+  overflow: hidden;
+}
+
+@media (hover: hover) {
+  .ai-receptionist-launcher:hover {
+    border-color: #27BAC8 !important;
+    box-shadow: 0 0 0 1px #27BAC8, 0 6px 22px rgba(0, 0, 0, 0.5), 0 0 14px rgba(39, 186, 200, 0.35) !important;
+    transform: none !important;
+  }
+}
+
+
+/* Disabled buttons stay inert */
+button:disabled,
+button[disabled],
+button[aria-disabled="true"],
+.btn-disabled {
+  pointer-events: none !important;
+  cursor: not-allowed !important;
+  opacity: 0.6;
+}
+
+/* Destructive actions remain distinct with red indication */
+.btn-destructive,
+.btn-danger {
+  border-color: #DC2626 !important;
+  color: #FFFFFF !important;
+  background-color: #DC2626 !important;
+}
+@media (hover: hover) {
+  .btn-destructive:hover,
+  .btn-danger:hover {
+    border-color: #EF4444 !important;
+    box-shadow: 0 0 0 1px #EF4444 !important;
+    transform: none !important;
+  }
+}
+
+/* -------------------------------------------------------------
+ * 2. STANDARDIZED CARD SYSTEM & CARD HOVER ARCHITECTURE (Stage 4B)
+ * Static cards remain completely stationary without hover effects.
+ * Genuinely interactive cards show ONLY a thin shining border on hover.
+ * Primary feature/decorative icons transition to brand accent.
  * ------------------------------------------------------------- */
 .card-standard {
   border-radius: 3px;
@@ -378,20 +500,7 @@
   background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(8px);
   box-shadow: 0 4px 16px rgba(18, 99, 107, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04);
-  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s ease, border-color 0.22s ease, background 0.22s ease;
-}
-
-.card-standard:hover {
-  transform: translateY(-8px) scale(1.028);
-  border-color: rgba(39, 186, 200, 0.55);
-  background: #FFFFFF;
-  box-shadow: 0 18px 36px rgba(32, 151, 162, 0.16), 0 4px 12px rgba(0, 0, 0, 0.06);
-}
-
-.card-standard:hover h2,
-.card-standard:hover h3,
-.card-standard:hover h4 {
-  color: var(--brand-blue) !important;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .card-dark {
@@ -400,13 +509,111 @@
   background: rgba(10, 38, 44, 0.75);
   backdrop-filter: blur(10px);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
-  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s ease, border-color 0.22s ease;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-.card-dark:hover {
-  transform: translateY(-8px) scale(1.028);
-  border-color: rgba(39, 186, 200, 0.65);
-  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.5), 0 0 20px rgba(39, 186, 200, 0.2);
+.card-static {
+  border-radius: 3px;
+  border: 1px solid rgba(37, 179, 194, 0.25);
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 4px 16px rgba(16, 91, 98, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+/* Interactive Cards Hover: Thin softly illuminated border only. Stationary (no scale/lift/shadow jump) */
+@media (hover: hover) {
+  .card-interactive:hover,
+  a.card-standard:hover,
+  button.card-standard:hover,
+  .card-standard.cursor-pointer:hover,
+  .card-standard[role="button"]:hover {
+    border-color: var(--interactive-hover-border) !important;
+    box-shadow: 0 0 0 1px var(--interactive-hover-border), 0 4px 16px rgba(18, 99, 107, 0.06) !important;
+    transform: none !important;
+  }
+
+  .card-dark.card-interactive:hover,
+  .review-slide-card:hover,
+  .review-slide-card.card-dark:hover,
+  a.card-dark:hover,
+  button.card-dark:hover,
+  .card-dark.cursor-pointer:hover,
+  .card-dark[role="button"]:hover {
+    border-color: var(--interactive-hover-border-dark) !important;
+    box-shadow: 0 0 0 1px var(--interactive-hover-border-dark), 0 4px 16px rgba(0, 0, 0, 0.35) !important;
+    transform: none !important;
+  }
+}
+
+/* Keyboard focus-visible for interactive cards */
+.card-interactive:focus-visible,
+.review-slide-card:focus-visible,
+a.card-standard:focus-visible,
+button.card-standard:focus-visible,
+.card-standard.cursor-pointer:focus-visible,
+.card-standard[role="button"]:focus-visible,
+a.card-dark:focus-visible,
+button.card-dark:focus-visible,
+.card-dark.cursor-pointer:focus-visible,
+.card-dark[role="button"]:focus-visible {
+  outline: 2px solid var(--interactive-hover-border) !important;
+  outline-offset: 2px;
+}
+
+/* Primary decorative or action icon transition on card hover */
+.card-icon,
+.card-primary-icon,
+.card-icon-container svg {
+  transition: color var(--interactive-icon-duration) ease,
+              stroke var(--interactive-icon-duration) ease;
+}
+
+@media (hover: hover) {
+  .card-interactive:hover .card-icon,
+  .card-interactive:hover .card-primary-icon,
+  .card-interactive:hover .card-icon-container svg,
+  .card-standard.cursor-pointer:hover .card-icon,
+  .card-standard.cursor-pointer:hover .card-primary-icon,
+  .card-standard.cursor-pointer:hover .card-icon-container svg,
+  .card-standard[role="button"]:hover .card-icon,
+  a.card-standard:hover .card-icon,
+  button.card-standard:hover .card-icon {
+    color: var(--interactive-hover-icon) !important;
+    stroke: var(--interactive-hover-icon);
+  }
+
+  .card-dark.card-interactive:hover .card-icon,
+  .card-dark.card-interactive:hover .card-primary-icon,
+  .card-dark.cursor-pointer:hover .card-icon,
+  .card-dark.cursor-pointer:hover .card-primary-icon,
+  .card-dark[role="button"]:hover .card-icon,
+  a.card-dark:hover .card-icon,
+  button.card-dark:hover .card-icon {
+    color: var(--interactive-hover-icon-dark) !important;
+    stroke: var(--interactive-hover-icon-dark);
+  }
+}
+
+/* Reduced-Motion Support: disable moving shine sweep and transitions */
+@media (prefers-reduced-motion: reduce) {
+  .btn-primary::after,
+  .btn-blue::after,
+  .btn-light::after,
+  .btn-secondary::after,
+  .btn-dark::after,
+  .btn-outline::after,
+  .btn-interactive::after,
+  .ai-contextual-btn::after,
+  .nav-btn-aqua-primary::after,
+  .nav-btn-charcoal-ai::after {
+    animation: none !important;
+    display: none !important;
+  }
+
+  .card-icon,
+  .card-primary-icon {
+    transition: none !important;
+  }
 }
 
 /* -------------------------------------------------------------
@@ -845,10 +1052,7 @@
   box-shadow:
     0 6px 18px rgba(16, 91, 98, 0.35),
     inset 0 1px 0 rgba(255, 255, 255, 0.35);
-  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1),
-              background 0.25s ease,
-              box-shadow 0.25s ease,
-              border-color 0.25s ease;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
   cursor: pointer;
   text-decoration: none;
 }
@@ -857,36 +1061,31 @@
   content: '';
   position: absolute;
   top: 0;
-  left: -100%;
-  width: 60%;
+  left: 0;
+  width: 100%;
   height: 100%;
   background: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(255, 255, 255, 0.30) 50%,
+    var(--interactive-hover-shine) 50%,
     transparent 100%
   );
-  transform: skewX(-20deg);
-  transition: left 600ms ease;
+  transform: translateX(-120%) skewX(-20deg);
+  opacity: 0;
   pointer-events: none;
+  z-index: 2;
 }
 
-.nav-btn-aqua-primary:hover::after {
-  left: 140%;
-}
+@media (hover: hover) {
+  .nav-btn-aqua-primary:hover {
+    border-color: var(--interactive-hover-border) !important;
+    box-shadow: 0 0 0 1px var(--interactive-hover-border) !important;
+    transform: none !important;
+  }
 
-.nav-btn-aqua-primary:hover {
-  transform: translateY(-4px);
-  background: linear-gradient(
-    180deg,
-    #56C4CF 0%,
-    #25B3C2 55%,
-    #25A8B4 100%
-  );
-  border-color: #F7FFFF;
-  box-shadow:
-    0 10px 24px rgba(37, 179, 194, 0.5),
-    inset 0 1px 0 rgba(255, 255, 255, 0.45);
+  .nav-btn-aqua-primary:hover::after {
+    animation: interactive-shine-sweep var(--interactive-hover-duration) ease-out forwards;
+  }
 }
 
 /* Nav Menu Black / Charcoal Secondary CTA Button (Physical Right) */
@@ -916,9 +1115,7 @@
   box-shadow:
     0 6px 18px rgba(0, 0, 0, 0.45),
     inset 0 1px 0 rgba(255, 255, 255, 0.10);
-  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1),
-              border-color 0.25s ease,
-              box-shadow 0.25s ease;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
   cursor: pointer;
   text-decoration: none;
 }
@@ -929,42 +1126,42 @@
   height: 18px;
   flex-shrink: 0;
   stroke-width: 2px;
-  transition: color 0.2s ease, transform 0.2s ease;
-}
-
-.nav-btn-charcoal-ai:hover > svg {
-  color: #56C4CF;
+  transition: color var(--interactive-icon-duration) ease;
 }
 
 .nav-btn-charcoal-ai::after {
   content: '';
   position: absolute;
   top: 0;
-  left: -100%;
-  width: 60%;
+  left: 0;
+  width: 100%;
   height: 100%;
   background: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(99, 206, 214, 0.22) 50%,
+    var(--interactive-hover-shine) 50%,
     transparent 100%
   );
-  transform: skewX(-20deg);
-  transition: left 600ms ease;
+  transform: translateX(-120%) skewX(-20deg);
+  opacity: 0;
   pointer-events: none;
+  z-index: 2;
 }
 
-.nav-btn-charcoal-ai:hover::after {
-  left: 140%;
-}
+@media (hover: hover) {
+  .nav-btn-charcoal-ai:hover {
+    border-color: var(--interactive-hover-border) !important;
+    box-shadow: 0 0 0 1px var(--interactive-hover-border) !important;
+    transform: none !important;
+  }
 
-.nav-btn-charcoal-ai:hover {
-  transform: translateY(-4px);
-  border-color: #63CED6;
-  box-shadow:
-    0 10px 24px rgba(0, 0, 0, 0.6),
-    0 0 18px rgba(99, 206, 214, 0.35),
-    inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  .nav-btn-charcoal-ai:hover::after {
+    animation: interactive-shine-sweep var(--interactive-hover-duration) ease-out forwards;
+  }
+
+  .nav-btn-charcoal-ai:hover > svg {
+    color: var(--interactive-hover-icon);
+  }
 }
 
 /* Nav Menu Floating Close Button (Square Glass Control) */

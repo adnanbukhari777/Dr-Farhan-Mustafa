@@ -230,7 +230,7 @@ export const ReviewsSlider: React.FC = () => {
             return (
               <div
                 key={`${review.id}-ext-${idx}`}
-                className={`review-slide-card card-dark p-6 sm:p-7 flex flex-col justify-between ${
+                className={`review-slide-card card-dark card-interactive p-6 sm:p-7 flex flex-col justify-between ${
                   isSettling && isVisible ? 'slide-settling' : 'slide-entering'
                 }`}
                 style={{

@@ -246,7 +246,7 @@ export const ServiceDetailPage: React.FC<ServiceDetailPageProps> = ({
               {relatedServices.map((relService) => (
                 <div
                   key={relService.id}
-                  className="card-standard p-6 flex flex-col justify-between group cursor-pointer"
+                  className="card-standard card-interactive p-6 flex flex-col justify-between group cursor-pointer"
                   onClick={() => {
                     if (onSelectService) {
                       onSelectService(relService);
@@ -258,7 +258,7 @@ export const ServiceDetailPage: React.FC<ServiceDetailPageProps> = ({
                     <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--brand-blue)] bg-[var(--brand-blue)]/10 px-2 py-0.5 rounded-[var(--radius-sharp)] inline-block border border-[var(--border-subtle)]">
                       {relService.category}
                     </span>
-                    <h3 className="text-base font-bold text-[var(--brand-charcoal)] group-hover:text-[var(--brand-blue)] transition-colors leading-snug">
+                    <h3 className="text-base font-bold text-[var(--brand-charcoal)] leading-snug">
                       {relService.title}
                     </h3>
                     <p className="text-xs text-neutral-600 leading-relaxed line-clamp-2">
@@ -268,7 +268,7 @@ export const ServiceDetailPage: React.FC<ServiceDetailPageProps> = ({
 
                   <div className="pt-4 mt-4 border-t border-[var(--border-subtle)] flex items-center justify-between text-xs font-semibold text-[var(--brand-blue)]">
                     <span>Explore details</span>
-                    <ArrowRight className="w-4 h-4 transform group-hover:translate-x-1 transition-transform" />
+                    <ArrowRight className="card-icon w-4 h-4" />
                   </div>
                 </div>
               ))}

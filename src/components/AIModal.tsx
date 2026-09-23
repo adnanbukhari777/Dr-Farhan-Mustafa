@@ -1,23 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useCMS } from '../context/CMSContext';
-import {
-  Bot,
-  X,
-  Send,
-  AlertTriangle,
-  Phone,
-  Calendar,
-  MapPin,
-  CheckCircle2,
-  Globe,
-  Sparkles,
-  ShieldCheck,
-  RotateCcw,
-  Volume2,
-  VolumeX,
-  Clock
-} from 'lucide-react';
-import { WhatsAppIcon } from './WhatsAppIcon';
+import { Bot, X, Send, ArrowRight, ExternalLink } from 'lucide-react';
+import { CLINIC_INFO } from '../data/clinicData';
 import { PageId } from '../types';
 
 interface AIModalProps {
@@ -27,117 +11,291 @@ interface AIModalProps {
   onOpenAppointmentModal?: () => void;
 }
 
+export type ContextualActionType =
+  | 'book_appointment'
+  | 'manage_appointment'
+  | 'get_directions'
+  | 'contact_clinic'
+  | 'view_services'
+  | 'patient_intake';
+
+export interface ContextualAction {
+  type: ContextualActionType;
+  label: string;
+  route?: PageId;
+  externalUrl?: string;
+  icon: 'arrow' | 'external';
+}
+
 interface ChatMessage {
   id: string;
   sender: 'ai' | 'user';
   text: string;
   timestamp: string;
   isEmergency?: boolean;
-  detectedLang?: string;
-  quickActions?: { label: string; actionType: string; payload: string }[];
+  contextualAction?: ContextualAction | null;
+}
+
+// Strict allowlist for contextual destinations
+const ALLOWED_ACTIONS: Record<ContextualActionType, ContextualAction> = {
+  book_appointment: {
+    type: 'book_appointment',
+    label: 'Book Appointment',
+    route: 'appointments',
+    icon: 'arrow',
+  },
+  manage_appointment: {
+    type: 'manage_appointment',
+    label: 'Manage Appointment',
+    route: 'appointments',
+    icon: 'arrow',
+  },
+  get_directions: {
+    type: 'get_directions',
+    label: 'Get Directions',
+    externalUrl: CLINIC_INFO.googleMapsUrl,
+    icon: 'external',
+  },
+  contact_clinic: {
+    type: 'contact_clinic',
+    label: 'Contact Clinic',
+    route: 'contact',
+    icon: 'arrow',
+  },
+  view_services: {
+    type: 'view_services',
+    label: 'View Services',
+    route: 'services',
+    icon: 'arrow',
+  },
+  patient_intake: {
+    type: 'patient_intake',
+    label: 'Complete Pre-Visit Form',
+    route: 'patient-forms',
+    icon: 'arrow',
+  },
+};
+
+/**
+ * Deterministic contextual action resolver.
+ * Maps patient inquiry to at most one lightweight contextual next step.
+ * Strictly excludes greetings, medical emergencies, errors, and pure informational answers.
+ */
+function resolveContextualAction(
+  userQuery: string,
+  _aiReply: string,
+  isEmergency?: boolean,
+  isError?: boolean
+): ContextualAction | null {
+  // Never show action buttons on emergencies or error states
+  if (isEmergency || isError) {
+    return null;
+  }
+
+  const query = userQuery.trim().toLowerCase();
+
+  // Exclude pure greetings, social salutations, or simple closings
+  const greetingPattern =
+    /^(hi|hello|hey|salam|assalam|assalam-o-alaikum|aoa|good\s+(morning|afternoon|evening)|thanks|thank\s+you|shukriya|bye|goodbye|ok|okay)[!.\s]*$/i;
+  if (greetingPattern.test(query)) {
+    return null;
+  }
+
+  // 1. Rescheduling, cancellation, or checking existing appointment
+  if (
+    query.includes('reschedul') ||
+    query.includes('cancel') ||
+    query.includes('lookup') ||
+    query.includes('reference code') ||
+    query.includes('booking ref') ||
+    query.includes('change time') ||
+    query.includes('change date') ||
+    query.includes('postpone') ||
+    query.includes('manage appointment') ||
+    query.includes('check my appointment')
+  ) {
+    return ALLOWED_ACTIONS.manage_appointment;
+  }
+
+  // 2. Pre-visit form / clinical intake preparation
+  if (
+    query.includes('pre-visit') ||
+    query.includes('intake') ||
+    query.includes('patient form') ||
+    query.includes('medical history form') ||
+    query.includes('fill form') ||
+    query.includes('before visit')
+  ) {
+    return ALLOWED_ACTIONS.patient_intake;
+  }
+
+  // 3. Location, directions, and address
+  if (
+    query.includes('location') ||
+    query.includes('address') ||
+    query.includes('where is') ||
+    query.includes('direction') ||
+    query.includes('how to reach') ||
+    query.includes('faisal town') ||
+    query.includes('located') ||
+    query.includes('map') ||
+    query.includes('kahan') ||
+    query.includes('kidhar') ||
+    query.includes('rasta')
+  ) {
+    return ALLOWED_ACTIONS.get_directions;
+  }
+
+  // 4. Booking and appointment availability
+  if (
+    query.includes('book') ||
+    query.includes('appointment') ||
+    query.includes('timing') ||
+    query.includes('schedule') ||
+    query.includes('consultation') ||
+    query.includes('slot') ||
+    query.includes('fee') ||
+    query.includes('available') ||
+    query.includes('milna') ||
+    query.includes('checkup')
+  ) {
+    return ALLOWED_ACTIONS.book_appointment;
+  }
+
+  // 5. Contact, phone, receptionist call, or WhatsApp
+  if (
+    query.includes('contact') ||
+    query.includes('phone') ||
+    query.includes('whatsapp') ||
+    query.includes('number') ||
+    query.includes('call') ||
+    query.includes('front desk') ||
+    query.includes('reception') ||
+    query.includes('raabta')
+  ) {
+    return ALLOWED_ACTIONS.contact_clinic;
+  }
+
+  // 6. Medical services, conditions treated, or treatments offered
+  if (
+    query.includes('service') ||
+    query.includes('treat') ||
+    query.includes('specialty') ||
+    query.includes('specialist') ||
+    query.includes('disease') ||
+    query.includes('illness') ||
+    query.includes('diabetes') ||
+    query.includes('hypertension') ||
+    query.includes('blood pressure') ||
+    query.includes('cholesterol') ||
+    query.includes('liver') ||
+    query.includes('stomach') ||
+    query.includes('internal medicine')
+  ) {
+    return ALLOWED_ACTIONS.view_services;
+  }
+
+  // Default: do not attach action if no specific destination exists
+  return null;
 }
 
 export const AIModal: React.FC<AIModalProps> = ({
   isOpen,
   onClose,
   onNavigate,
-  onOpenAppointmentModal,
 }) => {
-  const { aiSettings, addAiMessageToSession, logAiSafetyTrigger } = useCMS();
+  const { addAiMessageToSession } = useCMS();
 
   // Session ID for this chat instance
   const [sessionId] = useState<string>(() => `sess-web-${Date.now()}`);
 
-  // Consent State
-  const [hasConsented, setHasConsented] = useState<boolean>(() => {
-    return localStorage.getItem('dfm_ai_consent_accepted') === 'true';
-  });
-
-  // Language preference
-  const [selectedLang, setSelectedLang] = useState<'en' | 'ur' | 'roman_ur'>('en');
-
-  // Text to speech enabled
-  const [isSpeechEnabled, setIsSpeechEnabled] = useState<boolean>(false);
-
-  // Messages
+  // Messages log
   const [messages, setMessages] = useState<ChatMessage[]>(() => [
     {
       id: 'msg-init',
       sender: 'ai',
-      text: "Assalam-o-Alaikum! Welcome to Dr. Farhan Mustafa's Official Clinic Reception. I am your 24/7 administrative AI assistant at HealthPro Medical Complex, Faisal Town, Lahore.\n\nI can help you with consultation timings, location directions, doctor credentials, fee structures, and appointment bookings in English, Urdu (اردو), or Roman Urdu.\n\n⚠️ Please note: I cannot assess medical symptoms, interpret lab tests, or prescribe medications. In an emergency, please dial Rescue 1122 immediately.",
+      text: "Assalam-o-Alaikum! Welcome to Dr. Farhan Mustafa's Official Clinic Reception. I am your 24/7 administrative assistant at HealthPro Medical Complex, Faisal Town, Lahore.\n\nI can assist with clinic consultation timings, location directions, doctor credentials, fee structures, and appointment bookings.\n\n⚠️ Note: I cannot assess medical symptoms, interpret lab tests, or prescribe medications. In an emergency, please dial Rescue 1122 immediately.",
       timestamp: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
-      quickActions: [
-        { label: 'Book Appointment', actionType: 'book_modal', payload: '/appointments' },
-        { label: 'Clinic Timings (6-9 PM)', actionType: 'prompt', payload: 'What are the clinic timings and consultation hours?' },
-        { label: 'Location & Map', actionType: 'navigate', payload: '/contact' },
-        { label: 'Consultation Fees', actionType: 'navigate', payload: '/fees' },
-        { label: 'WhatsApp Reception', actionType: 'whatsapp', payload: 'https://wa.me/923280145670' },
-      ],
+      contextualAction: null,
     },
   ]);
 
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Quick Prompt Presets by Language
-  const promptSuggestions = {
-    en: [
-      'What are clinic consultation timings?',
-      'Where in Faisal Town, Lahore is clinic located?',
-      'What are Dr. Farhan qualifications & experience?',
-      'How much is the consultation fee?',
-      'How to book an in-clinic or video appointment?',
-    ],
-    ur: [
-      'کلینک کے اوقات کار اور چیک اپ کا وقت کیا ہے؟',
-      'ڈاکٹر صاحب کا کلینک فیصل ٹاؤن میں کہاں ہے؟',
-      'ڈاکٹر فرحان مصطفیٰ کی قابلیت اور اسناد کیا ہیں؟',
-      'چیک اپ اور کنسلٹیشن فیس کتنی ہے؟',
-      'اپائنٹمنٹ بک کرنے کا کیا طریقہ ہے؟',
-    ],
-    roman_ur: [
-      'Clinic ke timings aur days kya hain?',
-      'Dr Farhan ka clinic Lahore me kahan waqia hai?',
-      'Doctor sahab ki qualifications kya hain?',
-      'Consultation fee kitni hai?',
-      'Appointment book karne ka tarika bata dein',
-    ],
+  const modalRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const isNearBottomRef = useRef(true);
+
+  // Maximum three starter suggestions, shown only before first user message
+  const starterSuggestions = [
+    { label: 'Clinic timings & days', query: 'What are the clinic consultation timings and days?' },
+    { label: 'Location in Faisal Town', query: 'Where is Dr. Farhan Mustafa’s clinic located in Faisal Town, Lahore?' },
+    { label: 'Consultation fees & booking', query: 'What is the consultation fee and how can I book an appointment?' },
+  ];
+
+  const hasUserSentMessage = messages.some((m) => m.sender === 'user');
+
+  // Focus input on open
+  useEffect(() => {
+    if (isOpen) {
+      const timer = setTimeout(() => {
+        inputRef.current?.focus();
+      }, 60);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen]);
+
+  // Handle escape key and return focus to launcher
+  const handleClose = () => {
+    onClose();
+    setTimeout(() => {
+      document.getElementById('floating-ai-receptionist-btn')?.focus();
+    }, 50);
   };
 
   useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        handleClose();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen]);
+
+  // Click outside handling
+  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (modalRef.current && !modalRef.current.contains(e.target as Node)) {
+      handleClose();
+    }
+  };
+
+  // Track if user is scrolled near the bottom
+  const handleScroll = () => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const threshold = 120;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    isNearBottomRef.current = distanceFromBottom <= threshold;
+  };
+
+  // Scroll to bottom only if user was already near bottom or just sent a message
+  useEffect(() => {
     if (isOpen) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      const lastMsg = messages[messages.length - 1];
+      if (lastMsg?.sender === 'user' || isNearBottomRef.current) {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }
     }
   }, [messages, isOpen, isLoading]);
 
   if (!isOpen) return null;
-
-  const handleAcceptConsent = () => {
-    setHasConsented(true);
-    localStorage.setItem('dfm_ai_consent_accepted', 'true');
-  };
-
-  const handleQuickActionClick = (action: { label: string; actionType: string; payload: string }) => {
-    if (action.actionType === 'book_modal') {
-      if (onOpenAppointmentModal) {
-        onOpenAppointmentModal();
-      } else {
-        onNavigate('appointments');
-      }
-      onClose();
-    } else if (action.actionType === 'navigate') {
-      const page = action.payload.replace('/', '') as PageId;
-      onNavigate(page);
-      onClose();
-    } else if (action.actionType === 'whatsapp') {
-      window.open(action.payload || 'https://wa.me/923280145670', '_blank', 'noopener,noreferrer');
-    } else if (action.actionType === 'tel') {
-      window.open(action.payload || 'tel:+923280145670', '_self');
-    } else if (action.actionType === 'prompt') {
-      executeUserQuery(action.payload);
-    }
-  };
 
   const executeUserQuery = async (queryText: string) => {
     if (!queryText.trim() || isLoading) return;
@@ -145,8 +303,7 @@ export const AIModal: React.FC<AIModalProps> = ({
     const userText = queryText.trim();
     const nowTime = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 
-    // Client-side detected language hint
-    let detected = selectedLang;
+    let detected = 'en';
     if (/[\u0600-\u06FF]/.test(userText)) {
       detected = 'ur';
     }
@@ -156,7 +313,6 @@ export const AIModal: React.FC<AIModalProps> = ({
       sender: 'user',
       text: userText,
       timestamp: nowTime,
-      detectedLang: detected,
     };
 
     const nextMessages = [...messages, userMsg];
@@ -171,24 +327,30 @@ export const AIModal: React.FC<AIModalProps> = ({
         body: JSON.stringify({
           message: userText,
           sessionId,
-          conversationHistory: nextMessages.slice(-6).map(m => ({ sender: m.sender, text: m.text })),
+          conversationHistory: nextMessages.slice(-6).map((m) => ({ sender: m.sender, text: m.text })),
         }),
       });
 
       if (res.ok) {
         const data = await res.json();
+        const replyText =
+          data.reply ||
+          'Thank you for reaching out. Please connect with our clinic staff on WhatsApp at https://wa.me/923280145670 or call 0328 0145670 during clinic consultation hours (Mon–Sat 6:00 PM – 9:00 PM).';
+        const isEmergency = Boolean(data.isEmergency);
+
+        const contextualAction = resolveContextualAction(userText, replyText, isEmergency, false);
+
         const aiMsg: ChatMessage = {
           id: `ai-${Date.now()}`,
           sender: 'ai',
-          text: data.reply || 'Thank you for your message. Please connect with our clinic staff on WhatsApp at +92 328 0145670.',
+          text: replyText,
           timestamp: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
-          isEmergency: Boolean(data.isEmergency),
-          quickActions: data.quickActions || [],
+          isEmergency,
+          contextualAction,
         };
 
-        setMessages(prev => [...prev, aiMsg]);
+        setMessages((prev) => [...prev, aiMsg]);
 
-        // Save into CMS state for conversation tracking
         addAiMessageToSession(
           sessionId,
           userText,
@@ -197,44 +359,28 @@ export const AIModal: React.FC<AIModalProps> = ({
           detected,
           data.triageFlag || 'clean'
         );
-
-        // Optional Web Speech API text-to-speech for accessibility
-        if (isSpeechEnabled && 'speechSynthesis' in window && !aiMsg.isEmergency) {
-          const cleanText = aiMsg.text.replace(/[⚠️*#]/g, '');
-          const utterance = new SpeechSynthesisUtterance(cleanText);
-          utterance.rate = 1.0;
-          window.speechSynthesis.speak(utterance);
-        }
       } else if (res.status === 429) {
-        // Rate limit hit
         const rateLimitMsg: ChatMessage = {
           id: `ai-rate-${Date.now()}`,
           sender: 'ai',
-          text: 'You have reached the maximum message rate for this session. Please connect with Dr. Farhan’s front desk directly on WhatsApp (+92 328 0145670) or by telephone at 0328 0145670.',
+          text: 'You have reached the temporary message rate limit. For immediate assistance, please connect with Dr. Farhan’s front desk on WhatsApp at https://wa.me/923280145670 or by phone at 0328 0145670.',
           timestamp: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
-          quickActions: [
-            { label: 'WhatsApp Reception', actionType: 'whatsapp', payload: 'https://wa.me/923280145670' },
-            { label: 'Call Clinic Desk', actionType: 'tel', payload: 'tel:+923280145670' },
-          ],
+          contextualAction: null,
         };
-        setMessages(prev => [...prev, rateLimitMsg]);
+        setMessages((prev) => [...prev, rateLimitMsg]);
       } else {
-        throw new Error('API returned non-200');
+        throw new Error('API non-200 response');
       }
-    } catch (err) {
-      // Offline / network fallback
+    } catch {
       const fallbackAiMsg: ChatMessage = {
         id: `ai-fb-${Date.now()}`,
         sender: 'ai',
-        text: `Dr. Farhan Mustafa consults at HealthPro Medical Complex, 860-B, Block B, Faisal Town, Lahore, Monday to Saturday, 6:00 PM – 9:00 PM (PKT). For immediate assistance and appointment confirmation, please reach our front desk on WhatsApp (+92 328 0145670).`,
+        text: 'Dr. Farhan Mustafa consults at HealthPro Medical Complex, 860-B, Block B, Faisal Town, Lahore, Monday to Saturday, 6:00 PM – 9:00 PM (PKT). You can book online at /appointments or message our reception directly on WhatsApp at https://wa.me/923280145670.',
         timestamp: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
         isEmergency: false,
-        quickActions: [
-          { label: 'Book Appointment', actionType: 'book_modal', payload: '/appointments' },
-          { label: 'WhatsApp Desk (+92 328 0145670)', actionType: 'whatsapp', payload: 'https://wa.me/923280145670' },
-        ],
+        contextualAction: null,
       };
-      setMessages(prev => [...prev, fallbackAiMsg]);
+      setMessages((prev) => [...prev, fallbackAiMsg]);
     } finally {
       setIsLoading(false);
     }
@@ -245,20 +391,78 @@ export const AIModal: React.FC<AIModalProps> = ({
     executeUserQuery(input);
   };
 
-  const handleResetChat = () => {
-    setMessages([
-      {
-        id: `msg-reset-${Date.now()}`,
-        sender: 'ai',
-        text: "Chat refreshed. How can I assist you with Dr. Farhan Mustafa's clinic schedules, location in Faisal Town, or appointment requests?",
-        timestamp: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
-        quickActions: [
-          { label: 'Book Appointment', actionType: 'book_modal', payload: '/appointments' },
-          { label: 'Clinic Timings', actionType: 'prompt', payload: 'What are the clinic timings?' },
-          { label: 'Location Map', actionType: 'navigate', payload: '/contact' },
-        ],
-      },
-    ]);
+  // Safe inline link and entity renderer
+  const renderMessageContent = (text: string) => {
+    const tokenRegex = /(https?:\/\/[^\s]+|\/(?:appointments|fees|contact|services|about|patient-forms|resources)\b|\+?92\s?3\d{2}\s?\d{7}|03\d{2}\s?\d{7}\b|1122\b)/gi;
+    const parts = text.split(tokenRegex);
+
+    return parts.map((part, index) => {
+      if (!part) return null;
+
+      // External URL or WhatsApp link
+      if (/^https?:\/\//i.test(part)) {
+        return (
+          <a
+            key={index}
+            href={part}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[#2097A2] hover:underline font-semibold break-all"
+          >
+            {part}
+          </a>
+        );
+      }
+
+      // Internal clinic route
+      if (/^\/(?:appointments|fees|contact|services|about|patient-forms|resources)\b/i.test(part)) {
+        const pageId = part.replace('/', '') as PageId;
+        return (
+          <a
+            key={index}
+            href={part}
+            onClick={(e) => {
+              e.preventDefault();
+              onNavigate(pageId);
+              handleClose();
+            }}
+            className="text-[#2097A2] hover:underline font-semibold"
+          >
+            {part}
+          </a>
+        );
+      }
+
+      // Emergency 1122
+      if (part === '1122') {
+        return (
+          <a
+            key={index}
+            href="tel:1122"
+            className="text-red-600 hover:underline font-bold"
+          >
+            1122
+          </a>
+        );
+      }
+
+      // Pakistani phone number
+      if (/^(\+?92\s?3\d{2}\s?\d{7}|03\d{2}\s?\d{7})$/i.test(part.trim())) {
+        const raw = part.replace(/\D/g, '');
+        const telNumber = raw.startsWith('92') ? `+${raw}` : raw.startsWith('0') ? `+92${raw.slice(1)}` : `+92${raw}`;
+        return (
+          <a
+            key={index}
+            href={`tel:${telNumber}`}
+            className="text-[#2097A2] hover:underline font-semibold whitespace-nowrap"
+          >
+            {part}
+          </a>
+        );
+      }
+
+      return part;
+    });
   };
 
   return (
@@ -266,262 +470,173 @@ export const AIModal: React.FC<AIModalProps> = ({
       role="dialog"
       aria-modal="true"
       aria-label="AI Clinic Receptionist"
-      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-fadeIn"
+      onClick={handleBackdropClick}
+      className="fixed inset-0 z-50 bg-black/40 sm:bg-transparent pointer-events-auto sm:pointer-events-none transition-opacity"
     >
-      <div className="bg-white w-full max-w-xl h-[680px] max-h-[92vh] rounded-none border border-[#E2E8F0] shadow-2xl flex flex-col justify-between overflow-hidden">
-        
-        {/* Top Header */}
-        <div className="bg-[#1A365D] text-white p-3.5 sm:p-4 flex items-center justify-between border-b border-[#2097A2]/30">
+      <div
+        ref={modalRef}
+        className="pointer-events-auto fixed inset-3 sm:inset-auto sm:bottom-6 sm:right-6 sm:w-[460px] sm:h-[680px] sm:max-w-[calc(100vw-32px)] sm:max-h-[calc(100dvh-32px)] bg-white border border-slate-200 shadow-2xl rounded-sm sm:rounded-md flex flex-col overflow-hidden animate-fadeIn pb-[env(safe-area-inset-bottom,0px)]"
+      >
+        {/* Compact Header */}
+        <div className="bg-[#1A365D] text-white px-4 py-3 sm:px-5 sm:py-3.5 flex items-center justify-between border-b border-[#2097A2]/30 shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-none bg-[#2097A2] border border-white/20 flex items-center justify-center shadow-xs">
-              <Bot className="w-5 h-5 text-white" />
+            <div className="w-9 h-9 bg-[#2097A2] border border-white/20 flex items-center justify-center rounded-sm shrink-0">
+              <Bot className="w-5 h-5 text-white" aria-hidden="true" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h3 className="font-bold text-sm tracking-tight">Dr. Farhan’s AI Receptionist</h3>
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-semibold">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                  Grounded & Active
-                </span>
-              </div>
-              <p className="text-[11px] text-white/80 font-normal">HealthPro Medical Complex, Faisal Town, Lahore</p>
-            </div>
-          </div>
-
-          {/* Quick Hand-Off Icons */}
-          <div className="flex items-center gap-1.5">
-            <a
-              href="https://wa.me/923280145670"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="p-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-none transition-colors flex items-center justify-center"
-              title="WhatsApp Front Desk (+92 328 0145670)"
-              aria-label="Contact clinic on WhatsApp"
-            >
-              <WhatsAppIcon className="w-4 h-4 text-white" aria-hidden="true" />
-            </a>
-            <a
-              href="tel:+923280145670"
-              className="p-1.5 bg-[#2097A2] hover:bg-[#1B808A] text-white rounded-none transition-colors flex items-center justify-center"
-              title="Call Clinic Reception (0328 0145670)"
-              aria-label="Call clinic reception"
-            >
-              <Phone className="w-4 h-4" aria-hidden="true" />
-            </a>
-            <button
-              onClick={handleResetChat}
-              className="p-1.5 text-white/70 hover:text-white hover:bg-white/10 rounded-none transition-colors cursor-pointer"
-              title="Restart Conversation"
-            >
-              <RotateCcw className="w-4 h-4" />
-            </button>
-            <button
-              onClick={onClose}
-              className="p-1.5 text-white/70 hover:text-white hover:bg-white/10 rounded-none transition-colors cursor-pointer ml-1"
-              aria-label="Close Receptionist"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-
-        {/* Emergency Notice Strip */}
-        <div className="bg-amber-50 border-b border-amber-200 px-3.5 py-1.5 text-[11px] text-amber-900 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5 font-medium">
-            <AlertTriangle className="w-3.5 h-3.5 text-amber-700 shrink-0" />
-            <span>Administrative assistant only. In acute medical emergency, call <strong>Rescue 1122</strong>.</span>
-          </div>
-          <a
-            href="tel:1122"
-            className="px-2 py-0.5 bg-red-600 hover:bg-red-700 text-white text-[10px] font-bold rounded-none whitespace-nowrap"
-          >
-            Call 1122
-          </a>
-        </div>
-
-        {/* First-Time Consent Modal Banner if not yet accepted */}
-        {!hasConsented && (
-          <div className="bg-[#F8FAFC] border-b border-[#E2E8F0] p-3.5 text-xs text-[#334155] space-y-2">
-            <div className="flex items-start gap-2">
-              <ShieldCheck className="w-4 h-4 text-[#2097A2] shrink-0 mt-0.5" />
-              <div>
-                <p className="font-semibold text-[#0A0A0A]">Patient Privacy & Clinical Information Notice</p>
-                <p className="text-[11px] text-[#64748B] mt-0.5 leading-relaxed">
-                  {aiSettings.consentText || "Dr. Farhan Mustafa's AI Assistant provides verified logistical and appointment information. It cannot provide medical diagnoses, symptom assessments, or prescription advice."}
-                </p>
+              <h2 className="font-semibold text-sm sm:text-[15px] tracking-tight text-white leading-tight">
+                Dr. Farhan’s AI Receptionist
+              </h2>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span className="text-[11px] text-emerald-300 font-medium">Online • 24/7 Clinic Guidance</span>
               </div>
             </div>
-            <div className="flex justify-end pt-1">
-              <button
-                onClick={handleAcceptConsent}
-                className="px-3.5 py-1 bg-[#2097A2] hover:bg-[#1B808A] text-white text-xs font-semibold rounded-none cursor-pointer"
-              >
-                I Understand & Proceed
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Language Tabs & Audio Toggle */}
-        <div className="bg-[#F8FAFC] border-b border-[#E2E8F0] px-3.5 py-2 flex items-center justify-between text-xs">
-          <div className="flex items-center gap-1.5">
-            <span className="text-[11px] text-[#64748B] flex items-center gap-1 font-medium mr-1">
-              <Globe className="w-3.5 h-3.5 text-[#2097A2]" /> Language:
-            </span>
-            <button
-              onClick={() => setSelectedLang('en')}
-              className={`px-2.5 py-0.5 text-xs font-medium border transition-colors cursor-pointer ${
-                selectedLang === 'en'
-                  ? 'bg-[#1A365D] text-white border-[#1A365D]'
-                  : 'bg-white text-[#475569] border-[#CBD5E1] hover:bg-slate-50'
-              }`}
-            >
-              English
-            </button>
-            <button
-              onClick={() => setSelectedLang('ur')}
-              className={`px-2.5 py-0.5 text-xs font-medium border transition-colors cursor-pointer ${
-                selectedLang === 'ur'
-                  ? 'bg-[#1A365D] text-white border-[#1A365D]'
-                  : 'bg-white text-[#475569] border-[#CBD5E1] hover:bg-slate-50'
-              }`}
-            >
-              اردو
-            </button>
-            <button
-              onClick={() => setSelectedLang('roman_ur')}
-              className={`px-2.5 py-0.5 text-xs font-medium border transition-colors cursor-pointer ${
-                selectedLang === 'roman_ur'
-                  ? 'bg-[#1A365D] text-white border-[#1A365D]'
-                  : 'bg-white text-[#475569] border-[#CBD5E1] hover:bg-slate-50'
-              }`}
-            >
-              Roman Urdu
-            </button>
           </div>
 
           <button
-            onClick={() => setIsSpeechEnabled(prev => !prev)}
-            className={`p-1 text-xs border rounded-none flex items-center gap-1 cursor-pointer transition-colors ${
-              isSpeechEnabled
-                ? 'bg-teal-50 border-[#2097A2] text-[#2097A2]'
-                : 'bg-white border-[#CBD5E1] text-[#64748B] hover:text-[#0A0A0A]'
-            }`}
-            title="Toggle Voice Readout"
+            type="button"
+            onClick={handleClose}
+            className="w-10 h-10 -mr-1 flex items-center justify-center text-white/80 hover:text-white hover:bg-white/10 rounded-sm transition-colors cursor-pointer focus-visible:outline-2 focus-visible:outline-white"
+            aria-label="Close AI Receptionist"
           >
-            {isSpeechEnabled ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
+            <X className="w-5 h-5" aria-hidden="true" />
           </button>
         </div>
 
-        {/* Message Log */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-[#F8FAFC]">
-          {messages.map((msg) => (
-            <div
-              key={msg.id}
-              className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}
-            >
-              <div
-                className={`max-w-[88%] p-3.5 text-xs leading-relaxed space-y-2.5 shadow-2xs ${
-                  msg.sender === 'user'
-                    ? 'bg-[#1A365D] text-white rounded-none'
-                    : msg.isEmergency
-                    ? 'bg-red-50 border-2 border-red-400 text-red-950 font-medium'
-                    : 'bg-white border border-[#E2E8F0] text-[#0F172A]'
-                }`}
-              >
-                <div className="whitespace-pre-line">{msg.text}</div>
+        {/* Scrollable Conversation Area */}
+        <div
+          ref={scrollContainerRef}
+          onScroll={handleScroll}
+          className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-5 space-y-4 bg-[#F8FAFC]"
+        >
+          {messages.map((msg) => {
+            const isUser = msg.sender === 'user';
+            const isEmergency = msg.isEmergency;
 
-                {/* Grounded Quick Action Buttons */}
-                {msg.quickActions && msg.quickActions.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 pt-2 border-t border-black/10">
-                    {msg.quickActions.map((qa, i) => (
-                      <button
-                        key={i}
-                        onClick={() => handleQuickActionClick(qa)}
-                        className={`px-2.5 py-1 text-[11px] font-semibold transition-colors cursor-pointer border inline-flex items-center gap-1 ${
-                          msg.isEmergency || qa.actionType === 'tel'
-                            ? 'bg-red-600 text-white border-red-700 hover:bg-red-700'
-                            : qa.actionType === 'whatsapp'
-                            ? 'bg-emerald-700 text-white border-emerald-800 hover:bg-emerald-800'
-                            : qa.actionType === 'book_modal'
-                            ? 'bg-[#2097A2] text-white border-[#1B808A] hover:bg-[#1B808A]'
-                            : 'bg-white text-[#2097A2] border-[#2097A2]/40 hover:bg-[#2097A2] hover:text-white'
-                        }`}
+            return (
+              <div
+                key={msg.id}
+                className={`flex flex-col ${isUser ? 'items-end' : 'items-start'}`}
+              >
+                <div
+                  className={`max-w-[85%] px-4 py-3 text-[15px] leading-relaxed break-words [overflow-wrap:anywhere] shadow-2xs ${
+                    isUser
+                      ? 'bg-[#1A365D] text-white rounded-t-lg rounded-bl-lg'
+                      : isEmergency
+                      ? 'bg-red-50 border border-red-300 text-red-950 font-medium rounded-t-lg rounded-br-lg'
+                      : 'bg-white border border-slate-200 text-slate-800 rounded-t-lg rounded-br-lg'
+                  }`}
+                >
+                  <div className="whitespace-pre-wrap">
+                    {renderMessageContent(msg.text)}
+                  </div>
+                </div>
+
+                {/* Maximum ONE lightweight contextual action link button per AI response */}
+                {!isUser && msg.contextualAction && (
+                  <div className="mt-2 flex justify-start">
+                    {msg.contextualAction.externalUrl ? (
+                      <a
+                        href={msg.contextualAction.externalUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="group inline-flex items-center gap-1.5 min-h-[44px] py-1 px-3 bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-700 hover:text-[#2097A2] border border-slate-200 hover:border-[#2097A2]/50 rounded-sm text-[12px] sm:text-[13px] font-medium transition-colors focus-visible:outline-2 focus-visible:outline-[#2097A2] focus-visible:outline-offset-1 shadow-2xs"
                       >
-                        {qa.actionType === 'whatsapp' && (
-                          <WhatsAppIcon className="w-3.5 h-3.5 text-white" aria-hidden="true" />
-                        )}
-                        <span>{qa.label}</span>
+                        <span>{msg.contextualAction.label}</span>
+                        <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-[#2097A2] transition-colors" aria-hidden="true" />
+                      </a>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (msg.contextualAction?.route) {
+                            onNavigate(msg.contextualAction.route);
+                            handleClose();
+                          }
+                        }}
+                        className="group inline-flex items-center gap-1.5 min-h-[44px] py-1 px-3 bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-700 hover:text-[#2097A2] border border-slate-200 hover:border-[#2097A2]/50 rounded-sm text-[12px] sm:text-[13px] font-medium transition-colors cursor-pointer focus-visible:outline-2 focus-visible:outline-[#2097A2] focus-visible:outline-offset-1 shadow-2xs"
+                      >
+                        <span>{msg.contextualAction.label}</span>
+                        <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-[#2097A2] transition-colors" aria-hidden="true" />
                       </button>
-                    ))}
+                    )}
                   </div>
                 )}
+
+                <span className="text-[11px] text-slate-400 mt-1 px-1">
+                  {msg.timestamp}
+                </span>
               </div>
-              <span className="text-[10px] text-[#94A3B8] mt-1 px-1">{msg.timestamp}</span>
-            </div>
-          ))}
+            );
+          })}
 
           {/* Typing Indicator */}
           {isLoading && (
-            <div className="flex items-center gap-2 text-xs text-[#64748B]">
-              <div className="bg-white border border-[#CBD5E1] p-2.5 flex items-center gap-1.5 shadow-2xs">
+            <div className="flex items-center gap-2 text-xs text-slate-500 pt-1" aria-live="polite">
+              <div className="bg-white border border-slate-200 px-3 py-2 flex items-center gap-1.5 shadow-2xs rounded-sm">
                 <span className="w-2 h-2 bg-[#2097A2] rounded-full animate-bounce"></span>
                 <span className="w-2 h-2 bg-[#2097A2] rounded-full animate-bounce [animation-delay:0.2s]"></span>
                 <span className="w-2 h-2 bg-[#2097A2] rounded-full animate-bounce [animation-delay:0.4s]"></span>
               </div>
-              <span className="text-[11px] italic">Checking verified clinic knowledge...</span>
+              <span className="text-[12px] italic">Checking clinic facts...</span>
+            </div>
+          )}
+
+          {/* Starter Suggestions (max 3, only before first user message) */}
+          {!hasUserSentMessage && !isLoading && (
+            <div className="pt-2">
+              <p className="text-[12px] font-medium text-slate-500 mb-2">Common questions:</p>
+              <div className="flex flex-wrap gap-2">
+                {starterSuggestions.map((item, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => executeUserQuery(item.query)}
+                    className="text-left text-[13px] font-medium text-slate-700 bg-white hover:bg-slate-50 active:bg-slate-100 border border-slate-300 hover:border-[#2097A2] hover:text-[#2097A2] px-3 py-1.5 rounded-sm transition-colors cursor-pointer shadow-2xs focus-visible:outline-2 focus-visible:outline-[#2097A2]"
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Suggested Quick Prompts Strip */}
-        <div className="bg-white border-t border-[#E2E8F0] px-3.5 py-2 overflow-x-auto whitespace-nowrap scrollbar-none flex gap-1.5">
-          {promptSuggestions[selectedLang].map((prompt, idx) => (
+        {/* Fixed Message Composer */}
+        <div className="bg-white border-t border-slate-200 p-3 sm:p-3.5 shrink-0">
+          <form onSubmit={handleFormSubmit} className="flex items-center gap-2">
+            <input
+              ref={inputRef}
+              type="text"
+              placeholder="Ask about timings, location, fees, or appointments..."
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              disabled={isLoading}
+              className="flex-1 min-h-[44px] px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-sm text-[15px] text-slate-900 placeholder:text-slate-400 focus:bg-white focus:border-[#2097A2] focus:ring-1 focus:ring-[#2097A2] focus:outline-hidden disabled:bg-slate-100 disabled:text-slate-400 transition-colors"
+              aria-label="Type your message to the AI Receptionist"
+            />
             <button
-              key={idx}
-              onClick={() => executeUserQuery(prompt)}
-              className="px-2.5 py-1 bg-[#F1F5F9] hover:bg-[#E2E8F0] text-[#334155] border border-[#CBD5E1] text-[11px] font-medium transition-colors cursor-pointer shrink-0"
+              type="submit"
+              disabled={!input.trim() || isLoading}
+              aria-label="Send message"
+              className="min-w-[44px] min-h-[44px] px-4 py-2 bg-[#2097A2] hover:bg-[#1B808A] active:bg-[#166E76] disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white font-bold text-xs uppercase tracking-wider rounded-sm transition-colors flex items-center justify-center gap-1.5 cursor-pointer focus-visible:outline-2 focus-visible:outline-[#2097A2] focus-visible:outline-offset-2 shrink-0"
             >
-              {prompt}
+              <Send className="w-4 h-4" aria-hidden="true" />
+              <span className="hidden sm:inline">Send</span>
             </button>
-          ))}
+          </form>
+
+          {/* Micro-Disclaimer */}
+          <div className="mt-2 text-[11px] text-slate-500 text-center leading-tight">
+            Administrative guidance only • For urgent medical emergencies dial{' '}
+            <a href="tel:1122" className="text-red-600 font-semibold hover:underline">
+              1122
+            </a>
+          </div>
         </div>
-
-        {/* Input Form */}
-        <form onSubmit={handleFormSubmit} className="p-3 bg-white border-t border-[#E2E8F0] flex gap-2">
-          <input
-            type="text"
-            placeholder={
-              selectedLang === 'ur'
-                ? 'کلینک کے اوقات، فیس یا اپائنٹمنٹ کے بارے میں پوچھیں...'
-                : selectedLang === 'roman_ur'
-                ? 'Clinic timings, fee ya appointment ke mutabiq puchen...'
-                : 'Ask about timings, Faisal Town location, fees, or booking...'
-            }
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            dir={selectedLang === 'ur' ? 'rtl' : 'ltr'}
-            className="flex-1 px-3.5 py-2.5 bg-[#F8FAFC] border border-[#CBD5E1] rounded-none text-xs text-[#0F172A] focus:bg-white focus:border-[#2097A2] focus:outline-hidden"
-          />
-          <button
-            type="submit"
-            disabled={!input.trim() || isLoading}
-            className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-white transition-colors flex items-center justify-center gap-1 cursor-pointer ${
-              !input.trim() || isLoading ? 'bg-slate-300 cursor-not-allowed' : 'bg-[#2097A2] hover:bg-[#1B808A]'
-            }`}
-          >
-            <Send className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Send</span>
-          </button>
-        </form>
-
-        {/* Legal Micro-Disclaimer */}
-        <div className="bg-[#F8FAFC] border-t border-[#E2E8F0] px-3 py-1.5 text-[10px] text-[#64748B] text-center">
-          {aiSettings.disclaimerText || "Informational AI Receptionist • Grounded in Published Clinic Facts • Outpatient care by prior appointment"}
-        </div>
-
       </div>
     </div>
   );

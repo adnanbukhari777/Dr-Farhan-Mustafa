@@ -273,7 +273,7 @@ export const HomePage: React.FC<HomePageProps> = ({
             {VERIFIED_SERVICES.map((service) => (
               <div
                 key={service.id}
-                className="card-standard p-6 flex flex-col justify-between group cursor-pointer"
+                className="card-standard card-interactive p-6 flex flex-col justify-between group cursor-pointer"
                 onClick={() => {
                   onSelectService(service);
                   onNavigate('service-detail');
@@ -293,7 +293,7 @@ export const HomePage: React.FC<HomePageProps> = ({
 
                 <div className="pt-6 mt-4 border-t border-[var(--border-subtle)] flex items-center justify-between text-xs font-semibold text-[var(--brand-blue)]">
                   <span>Learn more</span>
-                  <ArrowRight className="w-4 h-4 transform group-hover:translate-x-1 transition-transform" />
+                  <ArrowRight className="card-icon w-4 h-4" />
                 </div>
               </div>
             ))}
@@ -407,9 +407,9 @@ export const HomePage: React.FC<HomePageProps> = ({
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="card-standard p-6 space-y-3">
-              <div className="w-10 h-10 rounded-[var(--radius-sm)] bg-[var(--brand-blue)]/15 flex items-center justify-center text-[var(--brand-blue)]">
-                <Award className="w-5 h-5" />
+            <div className="card-standard card-interactive p-6 space-y-3">
+              <div className="w-10 h-10 rounded-[var(--radius-sm)] bg-[var(--brand-blue)]/15 flex items-center justify-center text-[var(--brand-blue)] card-icon-container">
+                <Award className="card-primary-icon w-5 h-5" />
               </div>
               <h3 className="text-base font-bold text-[var(--brand-charcoal)]">FCPS & MRCP (UK)</h3>
               <p className="text-xs text-neutral-600 leading-relaxed">
@@ -417,9 +417,9 @@ export const HomePage: React.FC<HomePageProps> = ({
               </p>
             </div>
 
-            <div className="card-standard p-6 space-y-3">
-              <div className="w-10 h-10 rounded-[var(--radius-sm)] bg-[var(--brand-blue)]/15 flex items-center justify-center text-[var(--brand-blue)]">
-                <Stethoscope className="w-5 h-5" />
+            <div className="card-standard card-interactive p-6 space-y-3">
+              <div className="w-10 h-10 rounded-[var(--radius-sm)] bg-[var(--brand-blue)]/15 flex items-center justify-center text-[var(--brand-blue)] card-icon-container">
+                <Stethoscope className="card-primary-icon w-5 h-5" />
               </div>
               <h3 className="text-base font-bold text-[var(--brand-charcoal)]">Comprehensive History</h3>
               <p className="text-xs text-neutral-600 leading-relaxed">
@@ -427,9 +427,9 @@ export const HomePage: React.FC<HomePageProps> = ({
               </p>
             </div>
 
-            <div className="card-standard p-6 space-y-3">
-              <div className="w-10 h-10 rounded-[var(--radius-sm)] bg-[var(--brand-blue)]/15 flex items-center justify-center text-[var(--brand-blue)]">
-                <Activity className="w-5 h-5" />
+            <div className="card-standard card-interactive p-6 space-y-3">
+              <div className="w-10 h-10 rounded-[var(--radius-sm)] bg-[var(--brand-blue)]/15 flex items-center justify-center text-[var(--brand-blue)] card-icon-container">
+                <Activity className="card-primary-icon w-5 h-5" />
               </div>
               <h3 className="text-base font-bold text-[var(--brand-charcoal)]">Rational Therapeutics</h3>
               <p className="text-xs text-neutral-600 leading-relaxed">
@@ -623,7 +623,7 @@ export const HomePage: React.FC<HomePageProps> = ({
             {BLOG_POSTS.map((post) => (
               <article
                 key={post.id}
-                className="card-standard overflow-hidden flex flex-col justify-between group cursor-pointer"
+                className="card-standard card-interactive overflow-hidden flex flex-col justify-between group cursor-pointer"
                 onClick={() => onNavigate('blog')}
               >
                 {/* 16:9 Featured Image */}
@@ -631,7 +631,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                   <img
                     src={post.featuredImage || `/assets/images/articles/${post.slug}.jpg`}
                     alt={post.title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    className="w-full h-full object-cover"
                     loading="lazy"
                     referrerPolicy="no-referrer"
                     onError={(e) => {
@@ -661,7 +661,7 @@ export const HomePage: React.FC<HomePageProps> = ({
 
                   <div className="pt-4 mt-4 border-t border-[var(--border-subtle)] flex items-center justify-between text-xs font-semibold text-[var(--brand-blue)]">
                     <span>Read full guide</span>
-                    <ArrowRight className="w-3.5 h-3.5 transform group-hover:translate-x-1 transition-transform" />
+                    <ArrowRight className="card-icon w-3.5 h-3.5" />
                   </div>
                 </div>
               </article>

@@ -65,7 +65,7 @@ export const Header: React.FC<HeaderProps> = ({
               target="_blank"
               rel="noopener noreferrer"
               id="header-whatsapp-btn"
-              className="hidden sm:inline-flex items-center gap-1.5 min-h-[44px] px-3.5 text-xs font-medium text-[#090B0C] bg-white border border-neutral-300 rounded-[3px] shadow-[0_1px_2px_rgba(0,0,0,0.05)] hover:-translate-y-0.5 transition-all focus-visible:outline-2 focus-visible:outline-[#2097A2]"
+              className="btn-interactive hidden sm:inline-flex items-center gap-1.5 min-h-[44px] px-3.5 text-xs font-medium text-[#090B0C] bg-white border border-neutral-300 rounded-[3px] shadow-[0_1px_2px_rgba(0,0,0,0.05)] focus-visible:outline-2 focus-visible:outline-[#2097A2]"
               title="Chat on WhatsApp"
             >
               <WhatsAppIcon className="button-icon text-[#2097A2]" aria-hidden="true" />
@@ -76,7 +76,7 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               onClick={onOpenAI}
               id="header-ai-btn"
-              className="inline-flex items-center gap-1.5 min-h-[44px] px-3 sm:px-3.5 text-xs font-medium text-[#2097A2] bg-[#EFFBFC] border border-[#2097A2]/30 rounded-[3px] hover:bg-[#2097A2]/15 hover:-translate-y-0.5 transition-all cursor-pointer focus-visible:outline-2 focus-visible:outline-[#2097A2]"
+              className="btn-interactive inline-flex items-center gap-1.5 min-h-[44px] px-3 sm:px-3.5 text-xs font-medium text-[#2097A2] bg-[#EFFBFC] border border-[#2097A2]/30 rounded-[3px] cursor-pointer focus-visible:outline-2 focus-visible:outline-[#2097A2]"
               title="Dr. Farhan's AI Clinic Receptionist"
             >
               <Bot className="button-icon text-[#2097A2]" />
@@ -97,7 +97,7 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               onClick={onOpenMenu}
               id="header-menu-toggle-btn"
-              className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] p-2 bg-white text-[#090B0D] border border-neutral-300 hover:bg-[#090B0D] hover:text-white rounded-[3px] shadow-[0_1px_2px_rgba(0,0,0,0.05)] transition-all cursor-pointer focus-visible:outline-2 focus-visible:outline-[#2097A2]"
+              className="btn-interactive inline-flex items-center justify-center min-h-[44px] min-w-[44px] p-2 bg-white text-[#090B0D] border border-neutral-300 rounded-[3px] shadow-[0_1px_2px_rgba(0,0,0,0.05)] cursor-pointer focus-visible:outline-2 focus-visible:outline-[#2097A2]"
               aria-label={isMenuOpen ? "Close navigation menu" : "Open full navigation menu"}
               aria-expanded={isMenuOpen}
               aria-controls="fullscreen-nav-overlay"

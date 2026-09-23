@@ -172,7 +172,7 @@ export const BlogPage: React.FC<BlogPageProps> = ({ onNavigate }) => {
             {BLOG_POSTS.map((post) => (
               <article
                 key={post.id}
-                className="card-standard overflow-hidden flex flex-col justify-between group cursor-pointer"
+                className="card-standard card-interactive overflow-hidden flex flex-col justify-between group cursor-pointer"
                 onClick={() => setSelectedPost(post)}
               >
                 {/* 16:9 Featured Image */}
@@ -180,7 +180,7 @@ export const BlogPage: React.FC<BlogPageProps> = ({ onNavigate }) => {
                   <img
                     src={post.featuredImage || `/assets/images/articles/${post.slug}.jpg`}
                     alt={post.title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    className="w-full h-full object-cover"
                     loading="lazy"
                     referrerPolicy="no-referrer"
                     onError={(e) => {
@@ -201,7 +201,7 @@ export const BlogPage: React.FC<BlogPageProps> = ({ onNavigate }) => {
                       <span className="font-medium">{post.readTime || '4 min read'}</span>
                     </div>
 
-                    <h3 className="text-base font-bold text-[#090B0D] group-hover:text-[#2097A2] transition-colors leading-snug">
+                    <h3 className="text-base font-bold text-[#090B0D] leading-snug">
                       {post.title}
                     </h3>
 
@@ -212,7 +212,7 @@ export const BlogPage: React.FC<BlogPageProps> = ({ onNavigate }) => {
 
                   <div className="pt-4 mt-4 border-t border-[#2097A2]/10 flex items-center justify-between text-xs font-semibold text-[#2097A2]">
                     <span>Read full article</span>
-                    <ArrowRight className="w-3.5 h-3.5 transform group-hover:translate-x-1 transition-transform" />
+                    <ArrowRight className="card-icon w-3.5 h-3.5" />
                   </div>
                 </div>
               </article>

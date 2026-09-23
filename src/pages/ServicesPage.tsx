@@ -104,14 +104,14 @@ export const ServicesPage: React.FC<ServicesPageProps> = ({
           {filteredServices.map((service) => (
             <article
               key={service.id}
-              className="card-standard p-8 space-y-6 flex flex-col justify-between group"
+              className="card-standard card-interactive p-8 space-y-6 flex flex-col justify-between group"
             >
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--brand-blue)] bg-[var(--brand-blue)]/10 px-2.5 py-1 rounded-[var(--radius-sharp)] border border-[var(--border-subtle)]">
                     {service.category}
                   </span>
-                  <ShieldCheck className="w-4 h-4 text-[var(--brand-aqua)]" aria-hidden="true" />
+                  <ShieldCheck className="card-primary-icon w-4 h-4 text-[var(--brand-aqua)]" aria-hidden="true" />
                 </div>
 
                 <h2 className="text-xl sm:text-2xl font-bold text-[var(--brand-charcoal)] group-hover:text-[var(--brand-blue)] transition-colors">
