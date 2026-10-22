@@ -1,0 +1,29 @@
+# Hostinger Git-deployment adapter
+#
+# Serve the production PHP release nested in hostinger-release/ when this
+# repository is deployed directly into public_html.
+DirectoryIndex index.php
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # The compiled application refers to /assets/* from the domain root.
+    # Map those requests to the versioned assets in the release package.
+    RewriteRule ^assets/(.*)$ hostinger-release/assets/$1 [L]
+
+    # Expose the release package's public SEO files at the conventional paths.
+    RewriteRule ^(robots\.txt|sitemap\.xml)$ hostinger-release/$1 [L]
+
+    # Let the root PHP adapter dispatch API and SPA routes.
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^ index.php [QSA,L]
+</IfModule>
+
+# Never expose repository documentation, SQL dumps, environment files, logs,
+# or development configuration through the public web root.
+<FilesMatch "\.(env|sql|log|ini|conf|bak|md|ts|tsx|json)$">
+    Require all denied
+</FilesMatch>
+
+Options -Indexes
