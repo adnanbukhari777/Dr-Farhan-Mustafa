@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useCMS } from '../context/CMSContext';
-import { PhoneCall, AlertTriangle, X, ShieldAlert, ArrowRight } from 'lucide-react';
+import { PhoneCall, AlertTriangle, X, ShieldAlert, ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react';
 import { PageId } from '../types';
 
 interface AnnouncementBarProps {
@@ -10,6 +10,7 @@ interface AnnouncementBarProps {
 export const AnnouncementBar: React.FC<AnnouncementBarProps> = ({ onNavigate }) => {
   const { announcements, clinicInfo } = useCMS();
   const [showEmergencyModal, setShowEmergencyModal] = useState(false);
+  const [activeAnnouncementIndex, setActiveAnnouncementIndex] = useState(0);
 
   const activeAnnouncements = announcements && announcements.length > 0
     ? announcements.filter(a => a.active && a.status !== 'archived')
@@ -23,6 +24,37 @@ export const AnnouncementBar: React.FC<AnnouncementBarProps> = ({ onNavigate }) 
       active: true
     }
   ];
+
+  const announcementCount = displayList.length;
+  const currentAnnouncement = displayList[activeAnnouncementIndex] || displayList[0];
+
+  useEffect(() => {
+    setActiveAnnouncementIndex((currentIndex) =>
+      currentIndex >= announcementCount ? 0 : currentIndex
+    );
+  }, [announcementCount]);
+
+  useEffect(() => {
+    if (announcementCount <= 1) return;
+
+    const rotationTimer = window.setInterval(() => {
+      setActiveAnnouncementIndex((currentIndex) => (currentIndex + 1) % announcementCount);
+    }, 8000);
+
+    return () => window.clearInterval(rotationTimer);
+  }, [announcementCount]);
+
+  const showPreviousAnnouncement = () => {
+    setActiveAnnouncementIndex((currentIndex) =>
+      (currentIndex - 1 + announcementCount) % announcementCount
+    );
+  };
+
+  const showNextAnnouncement = () => {
+    setActiveAnnouncementIndex((currentIndex) =>
+      (currentIndex + 1) % announcementCount
+    );
+  };
 
   const emergencyNumber = (clinicInfo as any)?.emergencyPhone || '1122';
   const emergencyDisplay = (clinicInfo as any)?.emergencyPhoneDisplay || '1122 (Rescue Pakistan)';
@@ -45,8 +77,6 @@ export const AnnouncementBar: React.FC<AnnouncementBarProps> = ({ onNavigate }) 
         aria-label="Clinic Announcements and Emergency Help"
       >
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-3 sm:gap-6">
-          
-          {/* Left badge indicator */}
           <div className="hidden sm:flex items-center gap-2 shrink-0 pr-2 border-r border-white/10">
             <span className="inline-block w-2 h-2 rounded-full bg-[#27BAC8] animate-pulse"></span>
             <span className="text-[11px] font-semibold tracking-wider uppercase text-[#A4E0E5]">
@@ -54,51 +84,54 @@ export const AnnouncementBar: React.FC<AnnouncementBarProps> = ({ onNavigate }) 
             </span>
           </div>
 
-          {/* Center marquee track */}
-          <div 
-            className="flex-1 overflow-hidden relative"
-            tabIndex={0}
-            aria-label="Clinic updates marquee"
-          >
-            {/* Soft gradient edge fade */}
-            <div className="hidden sm:block absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-[#090B0C] to-transparent z-10 pointer-events-none" />
-            <div className="hidden sm:block absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-[#090B0C] to-transparent z-10 pointer-events-none" />
+          <div className="flex-1 min-w-0 flex items-center gap-1 sm:gap-2" aria-label="Clinic updates">
+            <button
+              type="button"
+              onClick={showPreviousAnnouncement}
+              disabled={announcementCount <= 1}
+              aria-label="Show previous announcement"
+              className="inline-flex items-center justify-center w-7 h-7 shrink-0 rounded-sm text-[#A4E0E5] hover:bg-white/10 hover:text-white disabled:opacity-35 disabled:cursor-not-allowed transition-colors focus-visible:outline-2 focus-visible:outline-[#27BAC8]"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
 
-            <div className="animate-marquee-track flex items-center gap-10 whitespace-nowrap text-neutral-200">
-              {/* Render twice for continuous loop */}
-              {[...displayList, ...displayList].map((item, idx) => (
-                <div 
-                  key={`${item.id}-${idx}`} 
-                  className="inline-flex items-center gap-2.5 text-xs md:text-[13px] hover:text-white transition-colors"
-                >
-                  {item.badgeText && (
-                    <span className="px-1.5 py-0.5 text-[10px] uppercase font-semibold tracking-wider rounded-[2px] bg-[#2097A2]/25 text-[#A4E0E5] border border-[#2097A2]/40">
-                      {item.badgeText}
-                    </span>
-                  )}
-                  <span>{item.text}</span>
-                  {item.linkUrl && (
-                    <button
-                      onClick={() => {
-                        if (item.linkUrl?.startsWith('http')) {
-                          window.open(item.linkUrl, '_blank', 'noopener,noreferrer');
-                        } else if (onNavigate && item.linkUrl) {
-                          const pageName = item.linkUrl.replace('/', '') as PageId;
-                          onNavigate(pageName || 'home');
-                        }
-                      }}
-                      className="text-[#27BAC8] hover:text-[#A4E0E5] font-medium underline underline-offset-2 ml-1 text-xs inline-flex items-center gap-0.5"
-                    >
-                      {item.linkLabel || 'Learn more'} <ArrowRight className="w-3 h-3" />
-                    </button>
-                  )}
-                  <span className="text-white/20 mx-3">•</span>
-                </div>
-              ))}
+            <div className="flex-1 min-w-0 text-center text-neutral-200" aria-live="polite" aria-atomic="true">
+              <div key={currentAnnouncement.id} className="flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1 text-xs md:text-[13px] leading-snug">
+                {currentAnnouncement.badgeText && (
+                  <span className="px-1.5 py-0.5 text-[10px] uppercase font-semibold tracking-wider rounded-[2px] bg-[#2097A2]/25 text-[#A4E0E5] border border-[#2097A2]/40">
+                    {currentAnnouncement.badgeText}
+                  </span>
+                )}
+                <span>{currentAnnouncement.text}</span>
+                {currentAnnouncement.linkUrl && (
+                  <button
+                    onClick={() => {
+                      if (currentAnnouncement.linkUrl?.startsWith('http')) {
+                        window.open(currentAnnouncement.linkUrl, '_blank', 'noopener,noreferrer');
+                      } else if (onNavigate && currentAnnouncement.linkUrl) {
+                        const pageName = currentAnnouncement.linkUrl.replace('/', '') as PageId;
+                        onNavigate(pageName || 'home');
+                      }
+                    }}
+                    className="text-[#27BAC8] hover:text-[#A4E0E5] font-medium underline underline-offset-2 text-xs inline-flex items-center gap-0.5"
+                  >
+                    {currentAnnouncement.linkLabel || 'Learn more'} <ArrowRight className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
             </div>
+
+            <button
+              type="button"
+              onClick={showNextAnnouncement}
+              disabled={announcementCount <= 1}
+              aria-label="Show next announcement"
+              className="inline-flex items-center justify-center w-7 h-7 shrink-0 rounded-sm text-[#A4E0E5] hover:bg-white/10 hover:text-white disabled:opacity-35 disabled:cursor-not-allowed transition-colors focus-visible:outline-2 focus-visible:outline-[#27BAC8]"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
           </div>
 
-          {/* Right fixed Emergency Help button */}
           <div className="shrink-0 flex items-center gap-2 pl-2">
             {emergencyNumber ? (
               <a
@@ -125,7 +158,6 @@ export const AnnouncementBar: React.FC<AnnouncementBarProps> = ({ onNavigate }) 
         </div>
       </aside>
 
-      {/* Emergency Modal Fallback */}
       {showEmergencyModal && (
         <div 
           className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
@@ -183,4 +215,3 @@ export const AnnouncementBar: React.FC<AnnouncementBarProps> = ({ onNavigate }) 
     </>
   );
 };
-
