@@ -6,6 +6,10 @@ on:
       - main
     paths:
       - "hostinger-release/**"
+      - "src/**"
+      - "index.html"
+      - "package.json"
+      - "vite.config.ts"
       - ".github/workflows/publish-production.yml"
   workflow_dispatch:
 
@@ -18,7 +22,7 @@ concurrency:
 
 jobs:
   publish:
-    name: Validate and publish production files
+    name: Build and publish production files
     runs-on: ubuntu-latest
 
     steps:
@@ -26,6 +30,18 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Build browser assets for Hostinger
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --ignore-scripts
+          npx vite build --outDir hostinger-release --emptyOutDir false
 
       - name: Validate Hostinger release
         shell: bash
