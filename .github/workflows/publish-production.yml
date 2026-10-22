@@ -46,4 +46,4 @@ jobs:
           test -f hostinger-release/.htaccess
           git branch -D production-build 2>/dev/null || true
           git subtree split --prefix=hostinger-release -b production-build
-          git push origin production-build:production
+          git push --force-with-lease origin production-build:production
