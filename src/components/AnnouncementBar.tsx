@@ -72,11 +72,13 @@ export const AnnouncementBar: React.FC<AnnouncementBarProps> = ({ onNavigate }) 
     <>
       <aside 
         id="announcement-strip"
-        className="relative bg-[#090B0C] text-white text-xs md:text-sm py-2 px-3 sm:px-6 border-b border-[#2097A2]/20 z-40 overflow-hidden select-none"
+        className="relative bg-[#090B0C] text-white text-xs md:text-sm py-1.5 sm:py-2 px-2.5 sm:px-6 border-b border-[#2097A2]/20 z-40 overflow-hidden select-none"
         role="region"
         aria-label="Clinic Announcements and Emergency Help"
       >
-        <div className="max-w-7xl mx-auto flex items-center justify-between gap-3 sm:gap-6">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-1.5 sm:gap-6">
+          
+          {/* Left badge indicator */}
           <div className="hidden sm:flex items-center gap-2 shrink-0 pr-2 border-r border-white/10">
             <span className="inline-block w-2 h-2 rounded-full bg-[#27BAC8] animate-pulse"></span>
             <span className="text-[11px] font-semibold tracking-wider uppercase text-[#A4E0E5]">
@@ -84,6 +86,7 @@ export const AnnouncementBar: React.FC<AnnouncementBarProps> = ({ onNavigate }) 
             </span>
           </div>
 
+          {/* Center announcement carousel */}
           <div className="flex-1 min-w-0 flex items-center gap-1 sm:gap-2" aria-label="Clinic updates">
             <button
               type="button"
@@ -96,13 +99,13 @@ export const AnnouncementBar: React.FC<AnnouncementBarProps> = ({ onNavigate }) 
             </button>
 
             <div className="flex-1 min-w-0 text-center text-neutral-200" aria-live="polite" aria-atomic="true">
-              <div key={currentAnnouncement.id} className="flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1 text-xs md:text-[13px] leading-snug">
+              <div key={currentAnnouncement.id} className="flex min-w-0 items-center justify-center gap-x-2.5 gap-y-1 text-xs md:text-[13px] leading-snug">
                 {currentAnnouncement.badgeText && (
-                  <span className="px-1.5 py-0.5 text-[10px] uppercase font-semibold tracking-wider rounded-[2px] bg-[#2097A2]/25 text-[#A4E0E5] border border-[#2097A2]/40">
+                  <span className="hidden sm:inline-flex px-1.5 py-0.5 text-[10px] uppercase font-semibold tracking-wider rounded-[2px] bg-[#2097A2]/25 text-[#A4E0E5] border border-[#2097A2]/40">
                     {currentAnnouncement.badgeText}
                   </span>
                 )}
-                <span>{currentAnnouncement.text}</span>
+                <span className="line-clamp-2 sm:line-clamp-none">{currentAnnouncement.text}</span>
                 {currentAnnouncement.linkUrl && (
                   <button
                     onClick={() => {
@@ -113,9 +116,9 @@ export const AnnouncementBar: React.FC<AnnouncementBarProps> = ({ onNavigate }) 
                         onNavigate(pageName || 'home');
                       }
                     }}
-                    className="text-[#27BAC8] hover:text-[#A4E0E5] font-medium underline underline-offset-2 text-xs inline-flex items-center gap-0.5"
+                    className="text-[#27BAC8] hover:text-[#A4E0E5] font-medium underline underline-offset-2 text-xs inline-flex shrink-0 items-center gap-0.5"
                   >
-                    {currentAnnouncement.linkLabel || 'Learn more'} <ArrowRight className="w-3 h-3" />
+                    <span className="hidden sm:inline">{currentAnnouncement.linkLabel || 'Learn more'}</span><span className="sr-only">{currentAnnouncement.linkLabel || 'Learn more'}</span><ArrowRight className="w-3 h-3" />
                   </button>
                 )}
               </div>
@@ -132,17 +135,18 @@ export const AnnouncementBar: React.FC<AnnouncementBarProps> = ({ onNavigate }) 
             </button>
           </div>
 
-          <div className="shrink-0 flex items-center gap-2 pl-2">
+          {/* Right fixed Emergency Help button */}
+          <div className="shrink-0 flex items-center gap-2 pl-1 sm:pl-2">
             {emergencyNumber ? (
               <a
                 id="emergency-call-button"
                 href={`tel:${emergencyNumber}`}
                 onClick={handleEmergencyClick}
                 title={`Call ${emergencyDisplay}`}
-                className="inline-flex items-center justify-center gap-1.5 min-h-[32px] px-3 py-1 bg-white hover:bg-neutral-100 text-[#090B0C] text-[11px] md:text-xs font-semibold rounded-[3px] border border-white shadow-[0_1px_3px_rgba(0,0,0,0.3)] hover:-translate-y-0.5 transition-all duration-150 focus-visible:outline-2 focus-visible:outline-[#27BAC8]"
+                className="inline-flex items-center justify-center gap-1.5 min-h-[32px] w-9 sm:w-auto px-0 sm:px-3 py-1 bg-white hover:bg-neutral-100 text-[#090B0C] text-[11px] md:text-xs font-semibold rounded-[3px] border border-white shadow-[0_1px_3px_rgba(0,0,0,0.3)] hover:-translate-y-0.5 transition-all duration-150 focus-visible:outline-2 focus-visible:outline-[#27BAC8]"
               >
                 <PhoneCall className="w-3.5 h-3.5 text-red-600 shrink-0" />
-                <span className="whitespace-nowrap">Emergency Help ({emergencyNumber})</span>
+                <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">Emergency Help ({emergencyNumber})</span>
               </a>
             ) : (
               <button
@@ -158,6 +162,7 @@ export const AnnouncementBar: React.FC<AnnouncementBarProps> = ({ onNavigate }) 
         </div>
       </aside>
 
+      {/* Emergency Modal Fallback */}
       {showEmergencyModal && (
         <div 
           className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
@@ -215,3 +220,4 @@ export const AnnouncementBar: React.FC<AnnouncementBarProps> = ({ onNavigate }) 
     </>
   );
 };
+
