@@ -12,7 +12,7 @@ export const FloatingAIButton: React.FC<FloatingAIButtonProps> = ({ onOpen }) =>
       onClick={onOpen}
       id="floating-ai-receptionist-btn"
       aria-label="Open AI Receptionist"
-      className="ai-receptionist-launcher fixed bottom-[76px] right-4 sm:bottom-6 sm:right-6 z-40 group cursor-pointer focus-visible:outline-2 focus-visible:outline-[#27BAC8] focus-visible:outline-offset-2"
+      className="ai-receptionist-launcher fixed bottom-[78px] right-3 sm:bottom-6 sm:right-6 z-40 group cursor-pointer focus-visible:outline-2 focus-visible:outline-[#27BAC8] focus-visible:outline-offset-2"
     >
       {/* Centered Bot Icon */}
       <Bot
