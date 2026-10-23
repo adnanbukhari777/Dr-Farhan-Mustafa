@@ -27,27 +27,27 @@ export const Header: React.FC<HeaderProps> = ({
       className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-[#E2E8F0] transition-all duration-200"
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between py-3.5 sm:py-4">
+        <div className="flex items-center justify-between gap-2 py-2.5 sm:py-4">
           
           {/* Brand Wordmark */}
           <div 
-            className="flex flex-col cursor-pointer group" 
+            className="flex min-w-0 max-w-[122px] flex-col cursor-pointer group sm:max-w-none" 
             onClick={() => onNavigate('home')} 
             id="brand-logo-area"
           >
             <div className="flex items-center gap-2">
               <span className="w-1.5 h-6 bg-[#2097A2] inline-block rounded-[1px] group-hover:bg-[#27BAC8] transition-colors"></span>
-              <span className="font-semibold text-lg sm:text-xl md:text-2xl text-[#090B0C] tracking-tight uppercase">
+              <span className="font-semibold text-[15px] leading-tight sm:text-xl md:text-2xl text-[#090B0C] tracking-tight uppercase">
                 {clinicInfo.doctorName}
               </span>
             </div>
-            <p className="text-[11px] sm:text-xs text-[#5B6467] font-medium tracking-wide mt-0.5 pl-3.5">
-              Consultant Physician • <span className="text-[#2097A2] font-semibold">{clinicInfo.qualifications}</span>
+            <p className="hidden sm:block text-[11px] sm:text-xs text-[#5B6467] font-medium tracking-wide mt-0.5 pl-3.5">
+              Consultant Physician â¢ <span className="text-[#2097A2] font-semibold">{clinicInfo.qualifications}</span>
             </p>
           </div>
 
           {/* Action CTAs & Navigation */}
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-3">
             {/* Direct Call Link */}
             <a
               href={`tel:${clinicInfo.phoneIntl || clinicInfo.phone}`}
@@ -76,7 +76,7 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               onClick={onOpenAI}
               id="header-ai-btn"
-              className="btn-interactive inline-flex items-center gap-1.5 min-h-[44px] px-3 sm:px-3.5 text-xs font-medium text-[#2097A2] bg-[#EFFBFC] border border-[#2097A2]/30 rounded-[3px] cursor-pointer focus-visible:outline-2 focus-visible:outline-[#2097A2]"
+              className="btn-interactive hidden sm:inline-flex items-center gap-1.5 min-h-[44px] px-3 sm:px-3.5 text-xs font-medium text-[#2097A2] bg-[#EFFBFC] border border-[#2097A2]/30 rounded-[3px] cursor-pointer focus-visible:outline-2 focus-visible:outline-[#2097A2]"
               title="Dr. Farhan's AI Clinic Receptionist"
             >
               <Bot className="button-icon text-[#2097A2]" />
@@ -87,17 +87,18 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               onClick={() => onNavigate('appointments')}
               id="header-book-btn"
-              className="btn-primary !min-h-[44px] !px-4 text-xs tracking-wide"
+              className="btn-primary !min-h-[42px] !px-3 sm:!min-h-[44px] sm:!px-4 text-xs tracking-wide"
             >
-              <Calendar className="button-icon hidden sm:inline text-white" />
-              <span>Book Appointment</span>
+              <Calendar className="button-icon text-white" />
+              <span className="sm:hidden">Book</span>
+              <span className="hidden sm:inline">Book Appointment</span>
             </button>
 
             {/* Full-screen Menu Button (Animated 3-Line / Hamburger) */}
             <button
               onClick={onOpenMenu}
               id="header-menu-toggle-btn"
-              className="btn-interactive inline-flex items-center justify-center min-h-[44px] min-w-[44px] p-2 bg-white text-[#090B0D] border border-neutral-300 rounded-[3px] shadow-[0_1px_2px_rgba(0,0,0,0.05)] cursor-pointer focus-visible:outline-2 focus-visible:outline-[#2097A2]"
+              className="btn-interactive inline-flex items-center justify-center min-h-[42px] min-w-[42px] sm:min-h-[44px] sm:min-w-[44px] p-2 bg-white text-[#090B0D] border border-neutral-300 rounded-[3px] shadow-[0_1px_2px_rgba(0,0,0,0.05)] cursor-pointer focus-visible:outline-2 focus-visible:outline-[#2097A2]"
               aria-label={isMenuOpen ? "Close navigation menu" : "Open full navigation menu"}
               aria-expanded={isMenuOpen}
               aria-controls="fullscreen-nav-overlay"
