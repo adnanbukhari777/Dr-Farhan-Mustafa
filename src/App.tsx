@@ -169,7 +169,6 @@ function AppContent() {
       {/* Mobile Sticky CTA Bar */}
       <MobileStickyCTA
         onNavigate={handleNavigate}
-        onOpenAI={() => setIsAIOpen(true)}
       />
 
       {/* Large Teal Footer */}
