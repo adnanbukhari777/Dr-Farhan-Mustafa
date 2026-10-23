@@ -48,7 +48,7 @@ export const HomePage: React.FC<HomePageProps> = ({
       {/* 1. Full-Width Hero Section with Background Video */}
       <section 
         id="hero-section"
-        className="hero-container relative min-h-[560px] md:min-h-[620px] flex items-center justify-center text-white py-16 md:py-24 px-4 sm:px-6 lg:px-8 overflow-hidden bg-[var(--brand-black)]"
+        className="hero-container relative min-h-[500px] md:min-h-[620px] flex items-center justify-center text-white py-12 sm:py-16 md:py-24 px-4 sm:px-6 lg:px-8 overflow-hidden bg-[var(--brand-black)]"
       >
         {/* Background Video with Poster Fallback */}
         <video
@@ -69,7 +69,7 @@ export const HomePage: React.FC<HomePageProps> = ({
         <div className="hero-overlay"></div>
 
         {/* Hero Content */}
-        <div className="hero-content relative z-10 max-w-4xl mx-auto text-center space-y-6">
+        <div className="hero-content relative z-10 max-w-4xl mx-auto text-center space-y-4 sm:space-y-6">
           
           {/* Hero Eyebrow Pill */}
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-[var(--radius-sm)] bg-white/10 backdrop-blur-md border border-white/25 text-xs sm:text-[13px] font-semibold tracking-wide text-[var(--footer-icon-blue)]">
@@ -78,22 +78,22 @@ export const HomePage: React.FC<HomePageProps> = ({
           </div>
 
           {/* Master H1 */}
-          <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-medium tracking-tight text-white leading-tight">
+          <h1 className="text-[28px] sm:text-4xl md:text-5xl lg:text-6xl font-medium tracking-tight text-white leading-tight">
             Thoughtful medical care, centered on you.
           </h1>
 
           {/* Master Supporting Text */}
-          <p className="text-base sm:text-lg md:text-xl text-neutral-200 font-normal max-w-2xl mx-auto leading-relaxed">
+          <p className="text-[15px] sm:text-lg md:text-xl text-neutral-200 font-normal max-w-2xl mx-auto leading-relaxed">
             Specialized clinical consultation with {clinicInfo.doctorName} at HealthPro Medical Complex in Faisal Town, Lahore.
           </p>
 
           {/* Hero Action Buttons: Blue Left, Black Right */}
-          <div className="pt-4 flex flex-col sm:flex-row items-center justify-center gap-3.5 sm:gap-4">
+          <div className="pt-2 sm:pt-4 flex flex-col sm:flex-row items-center justify-center gap-3.5 sm:gap-4">
             {/* Primary Blue Button on Left */}
             <button
               onClick={() => onNavigate('appointments')}
               id="hero-book-cta"
-              className="btn-primary w-full sm:w-auto min-h-[48px] px-8 text-xs uppercase tracking-wider"
+              className="btn-primary w-full sm:w-auto min-h-[46px] sm:min-h-[48px] px-8 text-xs uppercase tracking-wider"
             >
               <Calendar className="button-icon text-white" />
               <span>Book Appointment</span>
@@ -103,7 +103,7 @@ export const HomePage: React.FC<HomePageProps> = ({
             <button
               onClick={onOpenAI}
               id="hero-ai-cta"
-              className="btn-secondary w-full sm:w-auto min-h-[48px] px-7 text-xs uppercase tracking-wider"
+              className="btn-secondary w-full sm:w-auto min-h-[46px] sm:min-h-[48px] px-7 text-xs uppercase tracking-wider"
             >
               <Bot className="button-icon text-[#25B3C2]" aria-hidden="true" />
               <span>Ask AI Receptionist</span>
@@ -194,7 +194,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                 {clinicInfo.doctorName}
               </h2>
               <p className="text-sm text-[var(--brand-blue)] font-semibold">
-                {clinicInfo.title} • {clinicInfo.qualifications}
+                {clinicInfo.title} â¢ {clinicInfo.qualifications}
               </p>
             </div>
 
@@ -457,7 +457,7 @@ export const HomePage: React.FC<HomePageProps> = ({
             </div>
 
             <h2 className="text-2xl sm:text-3xl md:text-4xl font-medium tracking-tight text-white">
-              {clinicInfo.googleRating} Star Rating • {clinicInfo.googleReviewCount} Patient Reviews
+              {clinicInfo.googleRating} Star Rating â¢ {clinicInfo.googleReviewCount} Patient Reviews
             </h2>
 
             <p className="text-xs sm:text-sm text-neutral-300 leading-relaxed">
